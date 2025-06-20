@@ -1,0 +1,15 @@
+media/
+logs/
+data_formatted/
+benchmark*.json
+benchmark*.log
+benchmark*.txt
+benchmark_videos/
+benchmark_results.png
+fix_gpu.py
+models/
+unsloth_compiled_cache/
+wandb/
+reset_gpu.sh
+run_with_cuda.sh
+test*
