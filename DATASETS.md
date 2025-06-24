@@ -1,0 +1,15 @@
+# Potential Datasets: 
+- Bespoke Manim (1000 simple examples), code yes https://huggingface.co/datasets/bespokelabs/bespoke-manim, transcript yes, video some 
+- ManimBench (400) SFT code yes, transcript no, short description yes, https://www.kaggle.com/datasets/ravidussilva/manim-sft/data video no 
+- ManimCodeGen (untested, 1600 short) code yes, short description yes, https://huggingface.co/datasets/generaleoley/manim-codegen video no 
+- Thanks (4400) https://huggingface.co/datasets/thanhkt/manim_code/viewer/default/train?views%5B%5D=train&row=5  
+- Manim CE Examples, https://docs.manim.community/en/stable/examples.html, code yes, video yes, transcript no, date no  
+- Manim Repository, https://themanimrepository.wordpress.com/, code yes, video yes, transcript no, date yes  
+- Manim CE Awesome manim, https://github.com/ManimCommunity/awesome-manim (look at README to find those with GitHub/youtube pairs)  
+- Dan4Life, videos yes https://www.youtube.com/@dan4life/videos, code yes https://github.com/Dan4Life/AoC2024_Videos, 
+- A Little More Than An Introduction To Series - code yes https://github.com/JonathanWoollett-Light/a-little-more-than-an-introduction-to, video yes videos https://www.youtube.com/channel/UCze6YPZo6gzj-Nup2P59KUA, , transcript yes, date yes, 
+- Kilacola (2) video yes https://www.youtube.com/channel/UCYiEcjVorHS78RgoqKiIFgQ, code yes https://github.com/kilacoda/videos, 
+- Reducible (long videos) video yes, https://www.youtube.com/@Reducible/videos, code yes https://github.com/nipunramk/Reducible
+- Kutuzova (5), videos yes https://www.youtube.com/@deeplearningthatworks/videos, code yes (ipynb) https://github.com/sgalkina/animations/tree/main/notebooks  
+- Visualizing Deep Learning (2), videos yes (playlist) https://www.youtube.com/playlist?list=PLyPKqVSnetmEOp_g_hfabuRAs9ET-shl_, code yes https://github.com/vivek3141/dl-visualization  
+- Vivek3141 (22) https://www.youtube.com/@vcubingx/videos, code yes https://github.com/vivek3141/videos (might have overlap with Visualizing Deep Learning series)
