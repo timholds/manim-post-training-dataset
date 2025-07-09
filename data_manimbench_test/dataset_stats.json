@@ -1,0 +1,18 @@
+{
+  "dataset_stats": {
+    "manimbench": {
+      "samples": 417,
+      "expected": 400
+    }
+  },
+  "total_samples": {
+    "raw": 417,
+    "train_before_augmentation": 376,
+    "train_after_augmentation": 955,
+    "test": 41,
+    "augmentation_factor": 2.5398936170212765
+  },
+  "source_distribution": {
+    "manimbench": 955
+  }
+}

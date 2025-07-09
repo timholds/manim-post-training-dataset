@@ -1,0 +1,33 @@
+{
+  "dataset_stats": {
+    "manimbench": {
+      "samples": 417,
+      "expected": 400
+    },
+    "bespoke_manim": {
+      "samples": 1000,
+      "expected": 1000
+    },
+    "thanks_dataset": {
+      "samples": 4395,
+      "expected": 4400
+    },
+    "manim_codegen": {
+      "samples": 1622,
+      "expected": 1600
+    }
+  },
+  "total_samples": {
+    "raw": 7434,
+    "train_before_augmentation": 6691,
+    "train_after_augmentation": 16747,
+    "test": 743,
+    "augmentation_factor": 2.5029143625765955
+  },
+  "source_distribution": {
+    "manimbench": 923,
+    "bespoke_manim": 2253,
+    "thanks_dataset": 9955,
+    "manim_codegen": 3616
+  }
+}

@@ -1,12 +1,16 @@
-# Manim Code Generation with Fine-tuned QWEN Model
+# Manim Code Generation with Fine-tuned Models
 
-This project fine-tunes a QWEN2.5-Coder model on the ManimBench dataset to generate high-quality Manim animation code from natural language descriptions.
+This project fine-tunes various code generation models on a combined Manim dataset to generate high-quality Manim animation code from natural language descriptions.
 
 ## Overview
 
-- **Base Model**: QWEN2.5-Coder-1.5B-Instruct (4-bit quantized)
+- **Base Models Supported**: QWEN2.5-Coder, CodeLlama, DeepSeek, CodeGemma, Stable Code
 - **Training Method**: QLoRA with Unsloth optimizations
-- **Dataset**: ManimBench v1 (417 samples)
+- **Dataset**: Combined dataset with 16,747 training samples from:
+  - Thanks Dataset (4,395 samples) - 59.4% of training data
+  - ManimCodeGen (1,622 samples) - 21.6% of training data
+  - Bespoke Manim (1,000 samples) - 13.5% of training data
+  - ManimBench (417 samples) - 5.5% of training data
 - **Deployment**: Ollama-compatible GGUF format
 - **GPU Requirement**: 16GB VRAM (tested on NVIDIA A4500)
 
@@ -36,16 +40,38 @@ cd manim-post-training
 # Create virtual environment (if not exists)
 python -m venv manim-env
 
-# Run the complete pipeline
-./setup_and_train.sh
+# Activate virtual environment
+source manim-env/bin/activate
+
+# Install dependencies with uv
+uv pip install -r requirements.txt
+
+# Prepare datasets (downloads from HuggingFace)
+python prepare_data_enhanced.py
+
+# Fine-tune a model (example with Qwen)
+python fine_tune.py --model "Qwen/Qwen2.5-Coder-1.5B-Instruct"
 ```
 
-This script will:
-1. Install all dependencies
-2. Prepare the ManimBench dataset
-3. Fine-tune the model (~30-45 minutes)
-4. Convert to Ollama format
-5. Run validation tests
+### Dataset Preparation
+
+```bash
+# Prepare all available datasets
+python prepare_data_enhanced.py
+
+# Or prepare specific datasets
+python prepare_data_enhanced.py --datasets bespoke_manim thanks_dataset
+
+# Disable augmentation if desired
+python prepare_data_enhanced.py --no-augmentation
+```
+
+This will:
+1. Download datasets from HuggingFace
+2. Process and clean the data
+3. Apply 2.5x data augmentation
+4. Create train/test splits
+5. Output to `data_formatted/`
 
 ### Using the Model
 
@@ -72,7 +98,8 @@ python test_inference.py --interactive
 
 ```
 manim-post-training/
-├── prepare_data.py          # Dataset preparation script
+├── prepare_data_enhanced.py # Enhanced multi-dataset preparation
+├── prepare_data.py          # Original ManimBench preparation
 ├── fine_tune.py             # Universal training script for multiple models
 ├── universal_tokenizer_setup.py  # Model-specific tokenizer configuration
 ├── tokenizer_configs.md     # Reference guide for model tokenizers
@@ -83,9 +110,12 @@ manim-post-training/
 ├── detect_overfitting.py    # Check for memorization vs learning
 ├── setup_and_train.sh       # One-click setup and training
 ├── requirements.txt         # Python dependencies
-├── data/                    # Processed datasets
-│   ├── train.json
-│   └── test.json
+├── data_formatted/          # Original processed datasets (no source tracking)
+│   └── ...
+├── data_formatted_with_sources/  # Enhanced datasets with source tracking
+│   ├── train.json          # 16,747 training samples with source field
+│   ├── test.json           # 743 test samples with source field
+│   └── dataset_stats.json  # Dataset statistics
 ├── models/                  # Model outputs
 │   ├── lora_model/         # LoRA adapters
 │   ├── merged_model/       # Full merged model
