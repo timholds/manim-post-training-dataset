@@ -16,6 +16,8 @@ import sys
 from datasets import load_dataset
 import requests
 from tqdm import tqdm
+import hashlib
+from datetime import datetime
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -310,7 +312,96 @@ def split_dataset(data: List[Dict[str, Any]], test_ratio: float = 0.1, seed: int
     
     return train_data, test_data
 
-def prepare_all_datasets(output_dir: str, dataset_names: Optional[List[str]] = None, use_augmentation: bool = True):
+# Source priority for deduplication (higher = keep when duplicates found)
+SOURCE_PRIORITY = {
+    "manimbench": 4,      # Highest quality, reviewed descriptions
+    "bespoke_manim": 3,   # Rich context, transcripts
+    "thanks_dataset": 2,  # Large dataset
+    "manim_codegen": 1    # Lowest priority
+}
+
+def normalize_description(desc: str) -> str:
+    """Normalize description for comparison."""
+    # Lowercase and normalize whitespace
+    return ' '.join(desc.lower().split())
+
+def deduplicate_data(all_data: List[Dict[str, Any]]) -> Tuple[List[Dict], Dict[str, Any]]:
+    """
+    Remove duplicate descriptions across datasets.
+    Returns deduplicated data and statistics.
+    """
+    from collections import defaultdict
+    
+    # Group by normalized description
+    desc_groups = defaultdict(list)
+    
+    for item in all_data:
+        norm_desc = normalize_description(item['description'])
+        desc_groups[norm_desc].append(item)
+    
+    # Statistics tracking
+    stats = {
+        'total_raw': len(all_data),
+        'unique_descriptions': len(desc_groups),
+        'duplicates_removed': 0,
+        'duplicates_by_source': defaultdict(int),
+        'kept_by_source': defaultdict(int),
+        'cross_source_duplicates': 0,
+        'within_source_duplicates': 0,
+        'examples_removed': []
+    }
+    
+    # Process each group of duplicates
+    deduplicated = []
+    
+    for norm_desc, items in desc_groups.items():
+        if len(items) == 1:
+            # No duplicates
+            deduplicated.append(items[0])
+            stats['kept_by_source'][items[0]['source']] += 1
+        else:
+            # Found duplicates - need to choose best one
+            sources = [item['source'] for item in items]
+            unique_sources = set(sources)
+            
+            if len(unique_sources) > 1:
+                stats['cross_source_duplicates'] += 1
+            else:
+                stats['within_source_duplicates'] += 1
+            
+            # Sort by source priority
+            sorted_items = sorted(items, key=lambda x: SOURCE_PRIORITY.get(x['source'], 0), reverse=True)
+            
+            # Keep the best one
+            best_item = sorted_items[0]
+            deduplicated.append(best_item)
+            stats['kept_by_source'][best_item['source']] += 1
+            
+            # Track what we removed
+            for item in sorted_items[1:]:
+                stats['duplicates_removed'] += 1
+                stats['duplicates_by_source'][item['source']] += 1
+                
+                # Save some examples (limit to prevent huge files)
+                if len(stats['examples_removed']) < 100:
+                    stats['examples_removed'].append({
+                        'description': item['description'],
+                        'source': item['source'],
+                        'kept_source': best_item['source'],
+                        'normalized_desc': norm_desc
+                    })
+    
+    # Log summary
+    logger.info(f"\nDeduplication Summary:")
+    logger.info(f"  Original samples: {stats['total_raw']:,}")
+    logger.info(f"  Unique samples: {len(deduplicated):,}")
+    logger.info(f"  Duplicates removed: {stats['duplicates_removed']:,}")
+    logger.info(f"  Cross-source duplicates: {stats['cross_source_duplicates']:,}")
+    logger.info(f"  Within-source duplicates: {stats['within_source_duplicates']:,}")
+    
+    return deduplicated, stats
+
+def prepare_all_datasets(output_dir: str, dataset_names: Optional[List[str]] = None, use_augmentation: bool = True, deduplicate: bool = False):
     """Prepare all configured datasets."""
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
@@ -341,6 +432,12 @@ def prepare_all_datasets(output_dir: str, dataset_names: Optional[List[str]] = N
         return
     
     logger.info(f"\nTotal samples collected: {len(all_data)}")
+    
+    # Apply deduplication if requested
+    dedup_stats = None
+    if deduplicate:
+        all_data, dedup_stats = deduplicate_data(all_data)
+        logger.info(f"After deduplication: {len(all_data)} samples")
     
     # Split into train/test
     train_data, test_data = split_dataset(all_data, test_ratio=0.1)
@@ -389,7 +486,8 @@ def prepare_all_datasets(output_dir: str, dataset_names: Optional[List[str]] = N
     final_stats = {
         "dataset_stats": dataset_stats,
         "total_samples": {
-            "raw": len(all_data),
+            "raw": dedup_stats['total_raw'] if dedup_stats else len(all_data),
+            "after_deduplication": len(all_data) if deduplicate else None,
             "train_before_augmentation": len(train_data),
             "train_after_augmentation": len(augmented_train),
             "test": len(augmented_test),
@@ -398,19 +496,52 @@ def prepare_all_datasets(output_dir: str, dataset_names: Optional[List[str]] = N
         "source_distribution": {
             source: len([item for item in augmented_train if item.get("source") == source])
             for source in dataset_stats.keys()
-        }
+        },
+        "deduplication_applied": deduplicate
     }
     
     with open(stats_file, 'w') as f:
         json.dump(final_stats, f, indent=2)
     
+    # Save deduplication report if applicable
+    if dedup_stats:
+        dedup_report_file = output_path / "deduplication_report.json"
+        dedup_report = {
+            "timestamp": datetime.now().isoformat(),
+            "summary": {
+                "total_raw_samples": dedup_stats['total_raw'],
+                "unique_samples": dedup_stats['unique_descriptions'],
+                "duplicates_removed": dedup_stats['duplicates_removed'],
+                "reduction_percentage": (dedup_stats['duplicates_removed'] / dedup_stats['total_raw'] * 100) if dedup_stats['total_raw'] > 0 else 0,
+                "cross_source_duplicates": dedup_stats['cross_source_duplicates'],
+                "within_source_duplicates": dedup_stats['within_source_duplicates']
+            },
+            "duplicates_by_source": dict(dedup_stats['duplicates_by_source']),
+            "kept_by_source": dict(dedup_stats['kept_by_source']),
+            "source_priority": SOURCE_PRIORITY
+        }
+        
+        with open(dedup_report_file, 'w') as f:
+            json.dump(dedup_report, f, indent=2)
+        
+        # Save removed examples
+        removed_examples_file = output_path / "removed_duplicates.json"
+        with open(removed_examples_file, 'w') as f:
+            json.dump(dedup_stats['examples_removed'], f, indent=2)
+    
     # Log summary
     logger.info("\n" + "="*60)
-    logger.info("DATASET PREPARATION COMPLETE")
+    logger.info("DATASET PREPARATION COMPLETE" + (" WITH DEDUPLICATION" if deduplicate else ""))
     logger.info("="*60)
+    if dedup_stats:
+        logger.info(f"Original samples: {dedup_stats['total_raw']:,}")
+        logger.info(f"After deduplication: {len(all_data):,} ({dedup_stats['duplicates_removed']:,} removed, {dedup_stats['duplicates_removed']/dedup_stats['total_raw']*100:.1f}% reduction)")
     logger.info(f"Train samples: {len(augmented_train)} ({len(augmented_train)/len(train_data):.1f}x augmentation)")
     logger.info(f"Test samples: {len(augmented_test)}")
     logger.info(f"\nDataset statistics saved to: {stats_file}")
+    if dedup_stats:
+        logger.info(f"Deduplication report saved to: {output_path / 'deduplication_report.json'}")
+        logger.info(f"Removed examples saved to: {output_path / 'removed_duplicates.json'}")
     logger.info("\nSource distribution:")
     for source, count in final_stats["source_distribution"].items():
         logger.info(f"  {source}: {count} samples")
@@ -432,6 +563,7 @@ def main():
     parser.add_argument("--datasets", nargs="+", choices=list(DATASETS.keys()), 
                         help="Specific datasets to process (default: all)")
     parser.add_argument("--no-augmentation", action="store_true", help="Disable data augmentation")
+    parser.add_argument("--deduplicate", action="store_true", help="Remove duplicate descriptions across datasets")
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
     
     args = parser.parse_args()
@@ -454,7 +586,8 @@ def main():
     prepare_all_datasets(
         output_dir=args.output_dir,
         dataset_names=args.datasets,
-        use_augmentation=not args.no_augmentation
+        use_augmentation=not args.no_augmentation,
+        deduplicate=args.deduplicate
     )
 
 if __name__ == "__main__":

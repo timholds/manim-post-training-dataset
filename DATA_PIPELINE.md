@@ -11,6 +11,9 @@ The `prepare_data_enhanced.py` script provides a comprehensive data pipeline for
 - **Data Augmentation**: Applies 2.5x augmentation through prompt variations
 - **Quality Assurance**: Validates code syntax and ensures proper Scene class structure
 - **Flexible Processing**: Choose specific datasets or process all available
+- **Deduplication**: Removes duplicate descriptions across and within datasets (48.5% reduction achieved!)
+  - Prioritizes high-quality sources (ManimBench > Bespoke > Thanks > ManimCodeGen)
+  - Generates detailed reports of removed duplicates
 
 ## Usage
 
@@ -27,6 +30,9 @@ python prepare_data_enhanced.py --no-augmentation
 
 # Custom output directory
 python prepare_data_enhanced.py --output-dir custom_data
+
+# Enable deduplication (RECOMMENDED!)
+python prepare_data_enhanced.py --deduplicate --output-dir data_formatted_deduplicated
 ```
 
 ### Dataset Configuration
@@ -79,10 +85,15 @@ The pipeline applies intelligent augmentation to training data:
 
 ## Output Files
 
-Default output directory: `data_formatted_with_sources/`
+Default output directory: `data_formatted_with_sources/` (or `data_formatted_deduplicated/` with --deduplicate)
 - `train.json` - Augmented training data with source tracking
 - `test.json` - Test split (10% of data) with source tracking
 - `dataset_stats.json` - Detailed statistics including source distribution
+
+### With Deduplication Enabled
+Additional files created:
+- `deduplication_report.json` - Comprehensive deduplication statistics
+- `removed_duplicates.json` - Examples of removed duplicate entries
 
 ### Source Tracking
 Each sample includes a `"source"` field indicating which dataset it came from:

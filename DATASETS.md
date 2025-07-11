@@ -34,9 +34,33 @@
 - Bespoke Manim: 2,253 samples (13.5%)
 - ManimBench: 923 samples (5.5%)
 
-## Known Issues
-- **Significant duplication detected**: ~30% of samples have duplicate descriptions
-- **Deduplication needed**: Planning to implement smart deduplication while preserving diversity
+## Deduplication Applied (July 10, 2025) ✅
+
+### Deduplication Results
+- **Original dataset**: 7,434 samples
+- **After deduplication**: 3,827 samples (48.5% reduction!)
+- **Duplicates removed**: 3,607
+  - Cross-source duplicates: 1,272
+  - Within-source duplicates: 1,032
+
+### Final Source Distribution (Deduplicated)
+- ManimBench: 414 samples (99.3% retained - highest quality)
+- Bespoke Manim: 1,000 samples (100% retained)
+- Thanks Dataset: 2,413 samples (54.9% retained)
+- ManimCodeGen: 0 samples (100% were duplicates!)
+
+### Key Findings
+- **ManimCodeGen had 100% overlap** with other datasets (all 1,622 samples were duplicates)
+- **ManimBench maintained highest retention** due to priority for reviewed descriptions
+- **Thanks Dataset had significant internal duplication** (1,982 samples removed)
+
+### Output Location
+- **Deduplicated dataset**: `data_formatted_deduplicated/`
+  - Training samples: 8,600 (with 2.5x augmentation)
+  - Test samples: 382
+- **Reports**: 
+  - `deduplication_report.json` - Full statistics
+  - `removed_duplicates.json` - Examples of removed items
 
 # Potential Datasets for Future Integration 
 - Szymon Ozog Videos Information Theory Videos https://github.com/SzymonOzog/InformationTheory/tree/main youtube playlist
