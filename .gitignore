@@ -13,3 +13,4 @@ wandb/
 reset_gpu.sh
 run_with_cuda.sh
 test*
+data/

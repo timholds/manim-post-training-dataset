@@ -33,20 +33,41 @@ class ManimCodeExtractor:
         Handles:
         1. Chat template markers (QWEN format)
         2. Markdown code blocks
-        3. Plain code
+        3. Plain code (clean format)
         """
         # Step 1: Remove chat template markers if present
         clean_output = self._remove_chat_markers(model_output)
         
-        # Step 2: Extract code from markdown blocks
+        # Step 2: Try to extract code from markdown blocks
         code = self._extract_from_markdown(clean_output)
         
-        # Step 3: If no markdown blocks, assume entire output is code
+        # Step 3: If no markdown blocks, check if it's already clean Python code
         if not code:
-            code = clean_output.strip()
+            # If it looks like Python code (has imports, class, or def), use it directly
+            if self._looks_like_python_code(clean_output):
+                code = clean_output.strip()
+            else:
+                # Last resort - treat entire output as code
+                code = clean_output.strip()
         
         # Step 4: Sanitize the extracted code
         return self.sanitize(code)
+    
+    def _looks_like_python_code(self, text: str) -> bool:
+        """Check if text appears to be Python code."""
+        # Common Python/Manim patterns
+        python_indicators = [
+            "from manim import",
+            "import manim",
+            "class.*Scene.*:",
+            "def construct",
+            "def.*\\(.*\\):",
+        ]
+        
+        for pattern in python_indicators:
+            if re.search(pattern, text, re.MULTILINE):
+                return True
+        return False
     
     def _remove_chat_markers(self, text: str) -> str:
         """Remove QWEN chat template markers."""

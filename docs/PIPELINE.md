@@ -12,7 +12,7 @@ The `prepare_data_enhanced.py` script provides a comprehensive data pipeline for
 - **Quality Assurance**: Validates code syntax and ensures proper Scene class structure
 - **Flexible Processing**: Choose specific datasets or process all available
 - **Deduplication**: Removes duplicate descriptions across and within datasets (48.5% reduction achieved!)
-  - Prioritizes high-quality sources (ManimBench > Bespoke > Thanks > ManimCodeGen)
+  - Prioritizes high-quality sources (ManimBench > Bespoke > Thanks)
   - Generates detailed reports of removed duplicates
 
 ## Usage
@@ -47,9 +47,8 @@ The script supports the following datasets out of the box:
    - 4,400 examples with varied complexity
    - Fields: `input` → description, `output` → code
 
-3. **ManimCodeGen** (HuggingFace)
-   - 1,622 examples with queries
-   - Fields: `query` → description, `answer` → code
+3. ~~**ManimCodeGen** (HuggingFace)~~
+   - Removed: 100% overlap with other datasets (all 1,622 samples were duplicates)
 
 4. **ManimBench** (Kaggle) ✅
    - 417 high-quality examples with detailed descriptions
@@ -100,7 +99,7 @@ Each sample includes a `"source"` field indicating which dataset it came from:
 - `"manimbench"` - From ManimBench (Kaggle)
 - `"bespoke_manim"` - From Bespoke Manim (HuggingFace)
 - `"thanks_dataset"` - From Thanks Dataset (HuggingFace)
-- `"manim_codegen"` - From ManimCodeGen (HuggingFace)
+- ~~`"manim_codegen"`~~ - Removed due to 100% duplication
 
 ## Adding New Datasets
 

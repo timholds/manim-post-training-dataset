@@ -7,7 +7,9 @@ Our overall goal is to construct a perfect manim fine-tuning dataset from severa
 - Run source manim-env/bin/activate and use uv pip to install packages
 
 ## Development Style
-When creating diagnostic or testing scripts, it's better and cleaner to just run the python command directly instead of creating a new file and clogging up the repo. 
+- When creating diagnostic or testing scripts, it's better and cleaner to just run the python command directly instead of creating a new file and clogging up the repo. 
+
+- After we have accomplished our goals, we should update the PROJECT_PLAN.md file 
 
 
 ## Analyzing Large Datasets

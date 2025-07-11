@@ -48,6 +48,7 @@ MODEL_CONFIGS = {
         "target_modules": ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
         "chat_template": "chatml",
         "trust_remote_code": False,
+        "add_markdown_formatting": True,  # Qwen models benefit from markdown formatting
     },
     "codellama": {
         "hf_names": ["codellama/CodeLlama-7b-Instruct-hf", "codellama/CodeLlama-13b-Instruct-hf"],
@@ -55,6 +56,7 @@ MODEL_CONFIGS = {
         "target_modules": ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
         "chat_template": None,
         "trust_remote_code": False,
+        "add_markdown_formatting": False,  # CodeLlama works better without markdown
     },
 }
 
@@ -117,6 +119,7 @@ def detect_model_family(model_name: str) -> Tuple[str, Dict[str, Any]]:
         "target_modules": ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
         "chat_template": None,
         "trust_remote_code": False,
+        "add_markdown_formatting": False,  # Default to clean format
     }
 
 
@@ -170,8 +173,13 @@ def reset_gpu():
     return False
 
 
-def safe_train_model(model_name: str):
-    """Import all GPU libraries and train only after GPU is verified healthy."""
+def safe_train_model(model_name: str, force_markdown: Optional[bool] = None):
+    """Import all GPU libraries and train only after GPU is verified healthy.
+    
+    Args:
+        model_name: The model to train
+        force_markdown: Override markdown formatting (True/False) or None to use model default
+    """
     logger.info("GPU is healthy, importing torch and unsloth...")
     
     # Import torch first
@@ -237,9 +245,11 @@ def safe_train_model(model_name: str):
         
         return None
     
-    def load_dataset(file_path, tokenizer, model_family, chat_template):
+    def load_dataset(file_path, tokenizer, model_family, chat_template, add_markdown_formatting=False):
         """Load dataset from JSON lines file and format for specific model."""
         logger.info(f"Loading dataset from {file_path}")
+        logger.info(f"Markdown formatting: {'enabled' if add_markdown_formatting else 'disabled (clean format)'}")
+        
         data = []
         with open(file_path, 'r') as f:
             for line in f:
@@ -250,6 +260,10 @@ def safe_train_model(model_name: str):
             system_prompt = item['conversations'][0]['value']
             user_instruction = item['conversations'][1]['value']
             assistant_response = item['conversations'][2]['value']
+            
+            # Apply markdown formatting if requested
+            if add_markdown_formatting and not assistant_response.startswith("```python"):
+                assistant_response = f"```python\n{assistant_response}\n```"
             
             messages = [
                 {"role": "system", "content": system_prompt},
@@ -345,9 +359,17 @@ def safe_train_model(model_name: str):
         
         logger.info("Model and tokenizer initialized successfully")
         
-        # Load datasets
-        train_dataset = load_dataset(train_data_path, tokenizer, model_family, model_config.get("chat_template"))
-        eval_dataset = load_dataset(test_data_path, tokenizer, model_family, model_config.get("chat_template"))
+        # Load datasets with optional markdown formatting
+        # Use force_markdown if provided, otherwise use model default
+        if force_markdown is not None:
+            add_markdown = force_markdown
+            logger.info(f"Markdown formatting overridden by command line: {add_markdown}")
+        else:
+            add_markdown = model_config.get("add_markdown_formatting", False)
+            logger.info(f"Using model default for markdown formatting: {add_markdown}")
+        
+        train_dataset = load_dataset(train_data_path, tokenizer, model_family, model_config.get("chat_template"), add_markdown)
+        eval_dataset = load_dataset(test_data_path, tokenizer, model_family, model_config.get("chat_template"), add_markdown)
         
         # Print model info
         logger.info(f"Model has {model.num_parameters():,} parameters")
@@ -458,6 +480,9 @@ def main():
     parser.add_argument("--skip-test", action="store_true", help="Skip test generation after training")
     parser.add_argument("--force-reset", action="store_true", help="Force GPU reset before training")
     parser.add_argument("--max-retries", type=int, default=3, help="Maximum GPU reset retries")
+    parser.add_argument("--markdown", dest="markdown", action="store_true", help="Force markdown formatting")
+    parser.add_argument("--no-markdown", dest="markdown", action="store_false", help="Force no markdown formatting")
+    parser.set_defaults(markdown=None)  # None means use model default
     
     args = parser.parse_args()
     
@@ -504,7 +529,7 @@ def main():
     logger.info("\nStarting training with healthy GPU...")
     
     try:
-        output_path, model_family = safe_train_model(model_name)
+        output_path, model_family = safe_train_model(model_name, args.markdown)
         logger.info("✓ Training completed successfully!")
     except Exception as e:
         logger.error(f"✗ Training failed: {e}")

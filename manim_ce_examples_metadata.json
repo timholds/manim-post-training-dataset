@@ -1,0 +1,164 @@
+[
+  {
+    "index": 0,
+    "example_name": "ManimCELogo",
+    "category": "Basic Concepts",
+    "needs_description": true
+  },
+  {
+    "index": 1,
+    "example_name": "BraceAnnotation",
+    "category": "Basic Concepts",
+    "needs_description": true
+  },
+  {
+    "index": 2,
+    "example_name": "VectorArrow",
+    "category": "Basic Concepts",
+    "needs_description": true
+  },
+  {
+    "index": 3,
+    "example_name": "GradientImageFromArray",
+    "category": "Basic Concepts",
+    "needs_description": true
+  },
+  {
+    "index": 4,
+    "example_name": "BooleanOperations",
+    "category": "Basic Concepts",
+    "needs_description": true
+  },
+  {
+    "index": 5,
+    "example_name": "PointMovingOnShapes",
+    "category": "Animations",
+    "needs_description": true
+  },
+  {
+    "index": 6,
+    "example_name": "MovingAround",
+    "category": "Animations",
+    "needs_description": true
+  },
+  {
+    "index": 7,
+    "example_name": "MovingAngle",
+    "category": "Animations",
+    "needs_description": true
+  },
+  {
+    "index": 8,
+    "example_name": "MovingDots",
+    "category": "Animations",
+    "needs_description": true
+  },
+  {
+    "index": 9,
+    "example_name": "MovingGroupToDestination",
+    "category": "Animations",
+    "needs_description": true
+  },
+  {
+    "index": 10,
+    "example_name": "MovingFrameBox",
+    "category": "Animations",
+    "needs_description": true
+  },
+  {
+    "index": 11,
+    "example_name": "RotationUpdater",
+    "category": "Animations",
+    "needs_description": true
+  },
+  {
+    "index": 12,
+    "example_name": "PointWithTrace",
+    "category": "Animations",
+    "needs_description": true
+  },
+  {
+    "index": 13,
+    "example_name": "SinAndCosFunctionPlot",
+    "category": "Plotting with Manim",
+    "needs_description": true
+  },
+  {
+    "index": 14,
+    "example_name": "ArgMinExample",
+    "category": "Plotting with Manim",
+    "needs_description": true
+  },
+  {
+    "index": 15,
+    "example_name": "GraphAreaPlot",
+    "category": "Plotting with Manim",
+    "needs_description": true
+  },
+  {
+    "index": 16,
+    "example_name": "PolygonOnAxes",
+    "category": "Plotting with Manim",
+    "needs_description": true
+  },
+  {
+    "index": 17,
+    "example_name": "HeatDiagramPlot",
+    "category": "Plotting with Manim",
+    "needs_description": true
+  },
+  {
+    "index": 18,
+    "example_name": "FollowingGraphCamera",
+    "category": "Special Camera Settings",
+    "needs_description": true
+  },
+  {
+    "index": 19,
+    "example_name": "MovingZoomedSceneAround",
+    "category": "Special Camera Settings",
+    "needs_description": true
+  },
+  {
+    "index": 20,
+    "example_name": "FixedInFrameMObjectTest",
+    "category": "Special Camera Settings",
+    "needs_description": true
+  },
+  {
+    "index": 21,
+    "example_name": "ThreeDLightSourcePosition",
+    "category": "Special Camera Settings",
+    "needs_description": true
+  },
+  {
+    "index": 22,
+    "example_name": "ThreeDCameraRotation",
+    "category": "Special Camera Settings",
+    "needs_description": true
+  },
+  {
+    "index": 23,
+    "example_name": "ThreeDCameraIllusionRotation",
+    "category": "Special Camera Settings",
+    "needs_description": true
+  },
+  {
+    "index": 24,
+    "example_name": "ThreeDSurfacePlot",
+    "category": "Special Camera Settings",
+    "needs_description": true
+  },
+  {
+    "index": 25,
+    "example_name": "OpeningManim",
+    "category": "General",
+    "needs_description": true
+  },
+  {
+    "index": 26,
+    "example_name": "SineCurveUnitCircle",
+    "category": "General",
+    "needs_description": true
+  }
+]

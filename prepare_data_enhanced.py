@@ -49,8 +49,8 @@ DATASETS = {
     "bespoke_manim": {
         "type": "huggingface",
         "dataset_name": "bespokelabs/bespoke-manim",
-        "description_field": "instruction",  # May need adjustment based on actual schema
-        "code_field": "output",
+        "description_field": "question",  # The question/prompt field
+        "code_field": "python_code",      # The actual Manim code
         "split": "train",
         "expected_samples": 1000
     },
@@ -62,13 +62,19 @@ DATASETS = {
         "split": "train",
         "expected_samples": 4400
     },
-    "manim_codegen": {
-        "type": "huggingface", 
-        "dataset_name": "generaleoley/manim-codegen",
-        "description_field": "query",  # Corrected field name
-        "code_field": "answer",  # Corrected field name
-        "split": "train",
-        "expected_samples": 1600
+    "dan4life_aoc2024": {
+        "type": "local",
+        "file": "data_dan4life/dan4life_aoc2024.jsonl",
+        "description_field": "conversations[1].value",
+        "code_field": "conversations[2].value",
+        "expected_samples": 24
+    },
+    "szymon_ozog": {
+        "type": "local",
+        "file": "data_szymon_ozog/szymon_ozog_processed.jsonl",
+        "description_field": "conversations[1].value",
+        "code_field": "conversations[2].value",
+        "expected_samples": 29
     }
 }
 
@@ -136,7 +142,7 @@ def create_conversation(description: str, code: str, prompt_variation_idx: int =
     # Ensure code is properly formatted
     formatted_code = ensure_proper_code_format(code)
     
-    # Wrap in code blocks
+    # Wrap code in markdown blocks as expected by the system prompt
     assistant_response = f"```python\n{formatted_code}\n```"
     
     return {
@@ -229,6 +235,58 @@ def load_huggingface_dataset(config: Dict[str, Any], cache_dir: Path) -> Optiona
         logger.error(f"Failed to load HuggingFace dataset {dataset_name}: {e}")
         return None
 
+def load_local_dataset(config: Dict[str, Any]) -> Optional[pd.DataFrame]:
+    """Load local JSONL dataset."""
+    file_path = Path(config["file"])
+    
+    if not file_path.exists():
+        logger.error(f"Local file not found: {file_path}")
+        return None
+    
+    try:
+        data = []
+        with open(file_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                item = json.loads(line.strip())
+                # Extract fields based on config paths
+                desc_path = config["description_field"].split('.')
+                code_path = config["code_field"].split('.')
+                
+                # Navigate through nested structure
+                desc_value = item
+                for key in desc_path:
+                    if '[' in key and ']' in key:
+                        # Handle array access like "conversations[1]"
+                        base_key = key[:key.index('[')]
+                        index = int(key[key.index('[')+1:key.index(']')])
+                        desc_value = desc_value[base_key][index]
+                    else:
+                        desc_value = desc_value[key]
+                
+                code_value = item
+                for key in code_path:
+                    if '[' in key and ']' in key:
+                        base_key = key[:key.index('[')]
+                        index = int(key[key.index('[')+1:key.index(']')])
+                        code_value = code_value[base_key][index]
+                    else:
+                        code_value = code_value[key]
+                
+                # Clean code from markdown if needed
+                if code_value.startswith("```python"):
+                    code_value = code_value.split("```python")[1].split("```")[0].strip()
+                
+                data.append({
+                    config["description_field"]: desc_value,
+                    config["code_field"]: code_value,
+                    "source": item.get("source", "unknown")
+                })
+        
+        return pd.DataFrame(data)
+    except Exception as e:
+        logger.error(f"Error loading local dataset: {e}")
+        return None
+
 def process_dataset(dataset_name: str, config: Dict[str, Any], cache_dir: Path) -> List[Dict[str, Any]]:
     """Process a single dataset based on its configuration."""
     logger.info(f"\nProcessing dataset: {dataset_name}")
@@ -238,6 +296,8 @@ def process_dataset(dataset_name: str, config: Dict[str, Any], cache_dir: Path) 
         df = load_kaggle_dataset(config, cache_dir)
     elif config["type"] == "huggingface":
         df = load_huggingface_dataset(config, cache_dir)
+    elif config["type"] == "local":
+        df = load_local_dataset(config)
     else:
         logger.error(f"Unknown dataset type: {config['type']}")
         return []
@@ -276,12 +336,16 @@ def process_dataset(dataset_name: str, config: Dict[str, Any], cache_dir: Path) 
             if not description or not code or description == 'nan' or code == 'nan':
                 continue
             
-            # Clean up code if needed
+            # Clean up code if needed (handle markdown if present in source data)
             if code.startswith("```python"):
                 code = code[9:]
             if code.endswith("```"):
                 code = code[:-3]
             code = code.strip()
+            
+            # Remove literal \n from the beginning (common in thanks_dataset)
+            if code.startswith('\\n'):
+                code = code[2:].lstrip()
             
             # Check for minimal validity
             if len(code) < 20 or len(description) < 5:
@@ -316,8 +380,7 @@ def split_dataset(data: List[Dict[str, Any]], test_ratio: float = 0.1, seed: int
 SOURCE_PRIORITY = {
     "manimbench": 4,      # Highest quality, reviewed descriptions
     "bespoke_manim": 3,   # Rich context, transcripts
-    "thanks_dataset": 2,  # Large dataset
-    "manim_codegen": 1    # Lowest priority
+    "thanks_dataset": 2   # Large dataset
 }
 
 def normalize_description(desc: str) -> str:
@@ -401,7 +464,7 @@ def deduplicate_data(all_data: List[Dict[str, Any]]) -> Tuple[List[Dict], Dict[s
     
     return deduplicated, stats
 
-def prepare_all_datasets(output_dir: str, dataset_names: Optional[List[str]] = None, use_augmentation: bool = True, deduplicate: bool = False):
+def prepare_all_datasets(output_dir: str, dataset_names: Optional[List[str]] = None, use_augmentation: bool = False, deduplicate: bool = True):
     """Prepare all configured datasets."""
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
@@ -562,8 +625,8 @@ def main():
     parser.add_argument("--output-dir", default="data_formatted", help="Output directory for processed datasets")
     parser.add_argument("--datasets", nargs="+", choices=list(DATASETS.keys()), 
                         help="Specific datasets to process (default: all)")
-    parser.add_argument("--no-augmentation", action="store_true", help="Disable data augmentation")
-    parser.add_argument("--deduplicate", action="store_true", help="Remove duplicate descriptions across datasets")
+    parser.add_argument("--augmentation", action="store_true", help="Enable data augmentation (default: disabled)")
+    parser.add_argument("--no-deduplicate", action="store_true", help="Disable deduplication (default: enabled)")
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
     
     args = parser.parse_args()
@@ -586,8 +649,8 @@ def main():
     prepare_all_datasets(
         output_dir=args.output_dir,
         dataset_names=args.datasets,
-        use_augmentation=not args.no_augmentation,
-        deduplicate=args.deduplicate
+        use_augmentation=args.augmentation,
+        deduplicate=not args.no_deduplicate
     )
 
 if __name__ == "__main__":
