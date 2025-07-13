@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
 Enhanced data preparation pipeline using plugin-based extractors.
+Includes optional rendering validation to ensure code actually produces videos.
 """
 
 import json
@@ -13,9 +14,37 @@ from datetime import datetime
 
 from extractors import get_registry
 from extractors.utils import create_conversation, normalize_description, augment_prompt, normalize_code, calculate_similarity
+from extractors.quality_validator import QualityValidator, QualityFilter
+from extractors.rendering_validator import RenderingValidator, BatchRenderValidator
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+
+def fill_placeholder_descriptions(samples: List[Dict[str, Any]], llm_config: Optional[Dict] = None) -> List[Dict[str, Any]]:
+    """
+    Fill in placeholder descriptions using an LLM.
+    This is a placeholder function - implement with your preferred LLM.
+    """
+    logger.info(f"Checking {len(samples)} samples for placeholder descriptions...")
+    
+    placeholders_found = 0
+    for sample in samples:
+        desc = sample.get("description", "")
+        # Check for common placeholder patterns
+        if (len(desc) < 20 or 
+            "[" in desc and "]" in desc or
+            "TODO" in desc.upper() or 
+            "PLACEHOLDER" in desc.upper() or
+            desc.strip() == ""):
+            
+            placeholders_found += 1
+            # TODO: Implement LLM call here
+            # For now, just mark it
+            sample["needs_description"] = True
+    
+    logger.info(f"Found {placeholders_found} samples needing description generation")
+    return samples
 
 
 def deduplicate_data(all_data: List[Dict[str, Any]], source_priorities: Dict[str, int]) -> Tuple[List[Dict], Dict[str, Any]]:
@@ -158,7 +187,12 @@ def prepare_datasets(
     seed: int = 42,
     quality_config_path: Optional[str] = None,
     no_quality_validation: bool = False,
-    quality_strict: bool = False
+    quality_strict: bool = False,
+    enable_rendering_validation: bool = False,
+    rendering_timeout: int = 30,
+    rendering_fix_issues: bool = True,
+    llm_fill_descriptions: bool = False,
+    llm_config: Optional[Dict] = None
 ):
     """Prepare datasets using the plugin-based extractor system."""
     output_path = Path(output_dir)
@@ -244,6 +278,59 @@ def prepare_datasets(
         all_data, dedup_stats = deduplicate_data(all_data, source_priorities)
         logger.info(f"After deduplication: {len(all_data)} samples")
     
+    # Fill placeholder descriptions with LLM if requested
+    if llm_fill_descriptions:
+        all_data = fill_placeholder_descriptions(all_data, llm_config)
+    
+    # Apply rendering validation if requested
+    rendering_stats = None
+    if enable_rendering_validation:
+        logger.info("\n" + "="*60)
+        logger.info("Starting rendering validation...")
+        logger.info("="*60)
+        
+        # Initialize validators
+        render_validator = RenderingValidator(
+            timeout=rendering_timeout,
+            fix_common_issues=rendering_fix_issues
+        )
+        batch_validator = BatchRenderValidator(render_validator)
+        
+        # Progress callback
+        def progress_callback(current, total):
+            if current % 10 == 0:
+                logger.info(f"  Progress: {current}/{total} ({current/total*100:.1f}%)")
+        
+        # Validate all samples
+        valid_samples, invalid_samples = batch_validator.validate_dataset(
+            all_data, 
+            progress_callback=progress_callback
+        )
+        
+        # Update data to only include valid samples
+        logger.info(f"\nRendering validation complete:")
+        logger.info(f"  Valid samples: {len(valid_samples)} ({len(valid_samples)/len(all_data)*100:.1f}%)")
+        logger.info(f"  Invalid samples: {len(invalid_samples)} ({len(invalid_samples)/len(all_data)*100:.1f}%)")
+        
+        # Save rendering validation report
+        rendering_report = {
+            "timestamp": datetime.now().isoformat(),
+            "total_samples": len(all_data),
+            "valid_samples": len(valid_samples),
+            "invalid_samples": len(invalid_samples),
+            "validator_stats": render_validator.stats,
+            "failed_examples": batch_validator.get_failed_samples_report()
+        }
+        
+        with open(output_path / "rendering_validation_report.json", 'w') as f:
+            json.dump(rendering_report, f, indent=2)
+        
+        logger.info(render_validator.get_report())
+        
+        # Update all_data to only valid samples
+        all_data = valid_samples
+        rendering_stats = rendering_report
+    
     # Split into train/test
     train_data, test_data = split_dataset(all_data, test_ratio=test_ratio, seed=seed)
     
@@ -253,6 +340,11 @@ def prepare_datasets(
         # Always include original
         conv = create_conversation(item["description"], item["code"])
         conv["source"] = item["source"]
+        if item.get("rendering_validated"):
+            conv["rendering_validated"] = True
+        if item.get("auto_fixed"):
+            conv["auto_fixed"] = True
+            conv["fixes_applied"] = item.get("fixes_applied", [])
         augmented_train.append(conv)
         
         # Add augmented versions
@@ -263,6 +355,8 @@ def prepare_datasets(
                 augmented_desc = augment_prompt(item["description"], i)
                 conv = create_conversation(augmented_desc, item["code"])
                 conv["source"] = item["source"]
+                if item.get("rendering_validated"):
+                    conv["rendering_validated"] = True
                 augmented_train.append(conv)
     
     # Process test data (no augmentation)
@@ -270,6 +364,8 @@ def prepare_datasets(
     for item in test_data:
         conv = create_conversation(item["description"], item["code"])
         conv["source"] = item["source"]
+        if item.get("rendering_validated"):
+            conv["rendering_validated"] = True
         augmented_test.append(conv)
     
     # Save datasets
@@ -286,12 +382,13 @@ def prepare_datasets(
         for item in augmented_test:
             f.write(json.dumps(item) + '\n')
     
-    # Save statistics
+    # Save comprehensive statistics
     final_stats = {
         "dataset_stats": dataset_stats,
         "total_samples": {
             "raw": dedup_stats['total_raw'] if dedup_stats else len(all_data),
             "after_deduplication": len(all_data) if deduplicate else None,
+            "after_rendering_validation": len(all_data) if enable_rendering_validation else None,
             "train_before_augmentation": len(train_data),
             "train_after_augmentation": len(augmented_train),
             "test": len(augmented_test),
@@ -303,8 +400,19 @@ def prepare_datasets(
         },
         "source_priorities": source_priorities,
         "deduplication_applied": deduplicate,
+        "rendering_validation_applied": enable_rendering_validation,
         "timestamp": datetime.now().isoformat()
     }
+    
+    # Add rendering validation summary if applicable
+    if rendering_stats:
+        final_stats["rendering_validation"] = {
+            "total_validated": rendering_stats["total_samples"],
+            "passed": rendering_stats["valid_samples"],
+            "failed": rendering_stats["invalid_samples"],
+            "pass_rate": rendering_stats["valid_samples"] / rendering_stats["total_samples"] * 100 if rendering_stats["total_samples"] > 0 else 0,
+            "auto_fixed": rendering_stats["validator_stats"].get("fixed_and_rendered", 0)
+        }
     
     with open(stats_file, 'w') as f:
         json.dump(final_stats, f, indent=2)
@@ -338,17 +446,21 @@ def prepare_datasets(
     
     # Log summary
     logger.info("\n" + "="*60)
-    logger.info("DATASET PREPARATION COMPLETE" + (" WITH DEDUPLICATION" if deduplicate else ""))
+    logger.info("DATASET PREPARATION COMPLETE")
     logger.info("="*60)
     if dedup_stats:
         logger.info(f"Original samples: {dedup_stats['total_raw']:,}")
-        logger.info(f"After deduplication: {len(all_data):,} ({dedup_stats['duplicates_removed']:,} removed, {dedup_stats['duplicates_removed']/dedup_stats['total_raw']*100:.1f}% reduction)")
+        logger.info(f"After deduplication: {len(all_data) if not rendering_stats else rendering_stats['total_samples']:,}")
+    if rendering_stats:
+        logger.info(f"After rendering validation: {rendering_stats['valid_samples']:,}")
     logger.info(f"Train samples: {len(augmented_train)} ({len(augmented_train)/len(train_data):.1f}x augmentation)")
     logger.info(f"Test samples: {len(augmented_test)}")
     logger.info(f"\nDataset statistics saved to: {stats_file}")
     if dedup_stats:
         logger.info(f"Deduplication report saved to: {output_path / 'deduplication_report.json'}")
         logger.info(f"Removed examples saved to: {output_path / 'removed_duplicates.json'}")
+    if rendering_stats:
+        logger.info(f"Rendering validation report saved to: {output_path / 'rendering_validation_report.json'}")
     logger.info("\nSource distribution:")
     for source, count in final_stats["source_distribution"].items():
         logger.info(f"  {source}: {count} samples")
@@ -370,6 +482,15 @@ def main():
     parser.add_argument("--no-quality-validation", action="store_true", help="Disable quality validation (overrides config file)")
     parser.add_argument("--quality-strict", action="store_true", help="Enable strict quality validation (overrides config file)")
     
+    # New rendering validation options
+    parser.add_argument("--enable-rendering", action="store_true", help="Enable rendering validation")
+    parser.add_argument("--rendering-timeout", type=int, default=30, help="Timeout for each render attempt (seconds)")
+    parser.add_argument("--no-rendering-fixes", action="store_true", help="Disable automatic fixes during rendering")
+    
+    # LLM description options
+    parser.add_argument("--fill-descriptions", action="store_true", help="Fill placeholder descriptions with LLM")
+    parser.add_argument("--llm-config", help="LLM configuration file")
+    
     args = parser.parse_args()
     
     # Initialize registry
@@ -385,6 +506,12 @@ def main():
     
     random.seed(args.seed)
     
+    # Load LLM config if provided
+    llm_config = None
+    if args.llm_config and Path(args.llm_config).exists():
+        with open(args.llm_config, 'r') as f:
+            llm_config = json.load(f)
+    
     prepare_datasets(
         output_dir=args.output_dir,
         sources=args.sources,
@@ -394,7 +521,12 @@ def main():
         seed=args.seed,
         quality_config_path=args.quality_config,
         no_quality_validation=args.no_quality_validation,
-        quality_strict=args.quality_strict
+        quality_strict=args.quality_strict,
+        enable_rendering_validation=args.enable_rendering,
+        rendering_timeout=args.rendering_timeout,
+        rendering_fix_issues=not args.no_rendering_fixes,
+        llm_fill_descriptions=args.fill_descriptions,
+        llm_config=llm_config
     )
 
 

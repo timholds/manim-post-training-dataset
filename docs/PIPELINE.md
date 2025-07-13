@@ -165,13 +165,31 @@ Each line in train.json/test.json is a JSON object:
 
 ## Deduplication Strategy
 
-1. **Normalization**: Descriptions are normalized (lowercase, whitespace)
-2. **Priority-Based**: When duplicates found, keep highest priority source
-3. **Source Priorities**:
-   - manimbench: 4 (highest quality, reviewed)
-   - bespoke_manim: 3 (rich context)
-   - thanks_dataset: 2 (large dataset)
-   - Others: 1-2 (configurable per source)
+The pipeline uses an advanced deduplication system that considers both code and descriptions:
+
+1. **Code-First Approach**: Deduplication primarily focuses on code similarity to preserve unique implementations
+2. **Fast Hybrid Algorithm**:
+   - **Hash Comparison**: Instant detection of exact code matches
+   - **Token-Based Similarity**: Jaccard similarity for fuzzy matching
+   - **Early Termination**: Skips comparison for obviously different code sizes
+3. **Conservative Removal**: Only removes when very confident (>95% similarity for both code AND description, or exact code match)
+4. **Priority-Based Selection**: When duplicates found, keeps the highest priority source
+
+### Implementation Details
+
+- **Code Normalization**: Removes comments and normalizes whitespace for comparison only (original code is preserved)
+- **Performance**: ~600,000 comparisons per second using optimized token-based matching
+- **Similarity Thresholds**:
+  - Exact code match (normalized): Always remove
+  - >95% code AND >95% description similarity: Remove
+  - Everything else: Keep both to preserve diversity
+
+### Source Priorities
+- vivek3141_dl: 5 (deep learning focused, highest quality)
+- manimbench: 4 (manually reviewed)
+- bespoke_manim, manim_ce_examples, kutuzova: 3 (high quality)
+- thanks_dataset, dan4life_aoc2024, szymon_ozog: 2 (good quality)
+- Others: 1 (default)
 
 ## Configuration
 

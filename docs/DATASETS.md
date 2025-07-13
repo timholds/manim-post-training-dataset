@@ -30,9 +30,12 @@ All datasets are converted to a unified conversation structure for training:
 |---------|-------------|------------------|------------|---------|
 | manimbench | Kaggle | `"Reviewed Description"` | `"Code"` | 400 |
 | bespoke_manim | HuggingFace | `"question"` | `"python_code"` | 1000 |
-| thanks_dataset | HuggingFace | `"input"` | `"output"` | 4400 |
+| thanks_dataset | HuggingFace | ~~`"input"`~~ *[IGNORED]* | `"output"` | 4400 |
+| thanks_dataset_raw | HuggingFace | *[LLM Generated]* | `"output"` | 2441* |
 | dan4life_aoc2024 | Local | `conversations[1].value` | `conversations[2].value` | 24 |
 | szymon_ozog | Local | `conversations[1].value` | `conversations[2].value` | 29 |
+
+*Note: thanks_dataset_raw uses only unique code blocks (~2,441) and ignores original descriptions due to 47.2% mismatch rate.
 
 Each sample includes a `"source"` field for tracking dataset origin, enabling quality analysis, debugging, and weighted sampling during training.
 
@@ -67,6 +70,9 @@ Each sample includes a `"source"` field for tracking dataset origin, enabling qu
   - Source: https://huggingface.co/datasets/thanhkt/manim_code
   - Contains: code, instructions
   - Status: Fully integrated - 4,395 samples processed
+  - **IMPORTANT**: 47.2% of entries have mismatched code-description pairs. 
+    Now treated as code-only dataset with LLM description generation.
+    See THANKS_DATASET_VERIFICATION.md for detailed analysis.
   
 - **ManimBench** (417 examples) ✅
   - Source: https://www.kaggle.com/datasets/ravidussilva/manim-sft/data

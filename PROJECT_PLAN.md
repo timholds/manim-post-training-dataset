@@ -45,6 +45,14 @@ Construct a perfect manim fine-tuning dataset from multiple sources with high-qu
 
 ### 📋 Planned
 
+#### Quality Enhancements
+- [x] **Rendering Validation** - Validate that code actually produces videos
+  - Auto-fix common issues (missing imports, Scene inheritance, etc.)
+  - Filter out non-working code samples
+  - Available via `--enable-rendering` flag
+- [ ] LLM Description Generation for placeholder descriptions
+  - Available via `--fill-descriptions` flag
+
 #### Quick Win Datasets (from ROADMAP.md)
 - [ ] Manim CE Examples (~20 samples) - Already extracted in data_manim_ce_examples.jsonl
 - [ ] The Manim Repository (9 samples)

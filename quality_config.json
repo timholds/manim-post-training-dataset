@@ -1,77 +1,156 @@
 {
   "global_settings": {
     "enable_quality_validation": false,
-    "quality_strict_mode": false,
-    "min_description_length": 30,
-    "min_code_length": 100,
-    "allow_placeholders": false
+    "log_fixes": true,
+    "save_fix_report": true
   },
   
-  "source_overrides": {
-    "vivek3141": {
-      "quality_strict_mode": false,
-      "min_description_length": 25,
-      "notes": "Older manim style, descriptions auto-generated"
+  "validation_actions": {
+    "auto_fix": {
+      "single_line_code": {
+        "enabled": true,
+        "description": "Add newlines to fix 'class MyScene(Scene): def construct(self): ...' patterns"
+      },
+      "missing_imports": {
+        "enabled": true,
+        "default_import": "from manim import *",
+        "description": "Add missing manim imports"
+      },
+      "common_syntax_errors": {
+        "enabled": true,
+        "fix_missing_colons": true,
+        "fix_indentation": true,
+        "fix_unclosed_quotes": true,
+        "description": "Fix common Python syntax errors"
+      },
+      "empty_description": {
+        "enabled": true,
+        "placeholder": "[PLACEHOLDER - Needs description]",
+        "description": "Replace empty descriptions with placeholder"
+      }
     },
     
-    "thanks_dataset": {
-      "enable_quality_validation": true,
-      "quality_strict_mode": false,
-      "notes": "High syntax error rate, needs lenient validation"
+    "must_reject": {
+      "empty_code": {
+        "enabled": true,
+        "description": "Reject if code field is empty or just whitespace"
+      },
+      "corrupted_data": {
+        "enabled": true,
+        "description": "Reject malformed entries missing required fields"
+      },
+      "code_below_minimum": {
+        "enabled": true,
+        "min_length": 30,
+        "description": "Reject if code is shorter than minimum viable Manim scene"
+      },
+      "non_manim_code": {
+        "enabled": false,
+        "description": "Reject if code doesn't appear to be Manim (disabled for now)"
+      }
     },
     
-    "manim_ce_examples": {
-      "quality_strict_mode": true,
-      "notes": "Official examples should have high quality"
+    "allow_through": {
+      "short_descriptions": {
+        "enabled": true,
+        "min_length": 0,
+        "description": "Keep samples with short descriptions like 'Draw a circle'"
+      },
+      "placeholder_descriptions": {
+        "enabled": true,
+        "patterns": ["[PLACEHOLDER", "TODO", "TBD", "[INSERT"],
+        "description": "Keep samples with placeholder descriptions for later fixing"
+      },
+      "no_animation_methods": {
+        "enabled": true,
+        "description": "Keep samples even if they don't use play() or add()"
+      },
+      "simple_examples": {
+        "enabled": true,
+        "description": "Keep simple one-line animations for curriculum learning"
+      },
+      "old_manim_style": {
+        "enabled": true,
+        "description": "Keep samples using older Manim API versions"
+      }
     },
     
-    "bespoke_manim": {
-      "quality_strict_mode": true,
-      "notes": "High quality dataset, strict validation appropriate"
-    },
-    
-    "manimbench": {
-      "quality_strict_mode": true,
-      "notes": "Curated dataset, should maintain high standards"
-    },
-    
-    "reducible": {
-      "quality_strict_mode": true,
-      "notes": "Educational content, quality important"
+    "quality_warnings": {
+      "log_only": true,
+      "categories": {
+        "missing_scene_class": "Code might not have proper Scene class structure",
+        "no_construct_method": "Scene class missing construct() method",
+        "description_code_mismatch": "Description might not match the code",
+        "generic_description": "Description is too generic or vague",
+        "potential_syntax_issue": "Code might have syntax issues we couldn't auto-fix"
+      }
     }
   },
   
-  "quality_thresholds": {
-    "max_syntax_error_rate": 0.05,
-    "max_empty_construct_rate": 0.01,
-    "max_missing_imports_rate": 0.10,
-    "min_animation_method_presence": 0.80,
-    "min_math_object_presence": 0.70
+  "source_specific_overrides": {
+    "thanks_dataset": {
+      "auto_fix": {
+        "single_line_code": {
+          "enabled": true,
+          "aggressive_mode": true
+        },
+        "common_syntax_errors": {
+          "enabled": true,
+          "fix_all_issues": true
+        },
+        "empty_description": {
+          "enabled": true,
+          "placeholder": "[Code-only sample - description generated later]"
+        }
+      },
+      "must_reject": {
+        "non_manim_code": {
+          "enabled": false
+        }
+      },
+      "notes": "Unified extractor: 47.2% description mismatch rate, 50% duplicates, using code-only approach"
+    },
+    
+    "vivek3141": {
+      "allow_through": {
+        "old_manim_style": {
+          "enabled": true,
+          "expected": true
+        }
+      },
+      "notes": "Uses older Manim API, this is expected"
+    },
+    
+    "manim_ce_examples": {
+      "validation_actions": {
+        "must_reject": {
+          "enabled": false
+        }
+      },
+      "notes": "Official examples, assume high quality"
+    }
   },
   
-  "validation_rules": {
-    "critical": [
-      "syntax_error",
-      "missing_scene_structure",
-      "empty_construct",
-      "code_too_short"
-    ],
-    "high": [
-      "missing_imports",
-      "placeholder_content",
-      "incomplete_code",
-      "description_too_short"
-    ],
-    "medium": [
-      "missing_animation_methods",
-      "missing_math_objects",
-      "generic_description",
-      "description_missing_math_context"
-    ],
-    "low": [
-      "unbalanced_parentheses",
-      "description_formatting",
-      "class_name_mismatch"
-    ]
+  "fix_strategies": {
+    "single_line_code": {
+      "patterns": [
+        {
+          "pattern": "class (\\w+)\\(Scene\\): def construct\\(self\\): (.+)",
+          "replacement": "class $1(Scene):\n    def construct(self):\n        $2"
+        },
+        {
+          "pattern": "from manim import \\* class",
+          "replacement": "from manim import *\n\nclass"
+        }
+      ]
+    },
+    "missing_imports": {
+      "detection": [
+        "uses Scene class",
+        "uses Manim objects (Circle, Square, Text, etc.)",
+        "no import statements found"
+      ],
+      "fix": "prepend 'from manim import *\\n\\n' to code"
+    }
   }
 }

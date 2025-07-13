@@ -3,7 +3,7 @@
     "enable_quality_validation": true,
     "quality_strict_mode": false,
     "min_description_length": 10,
-    "min_code_length": 50,
+    "min_code_length": 25,
     "allow_placeholders": true,
     "allow_syntax_errors": false
   },
