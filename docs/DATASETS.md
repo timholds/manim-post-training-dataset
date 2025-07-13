@@ -183,18 +183,37 @@ The initial approach of generating generic descriptions like "Visualize Advent o
 - **Generic**: "Visualize the solution to Day 22"
 - **LLM-Generated**: "Create an animation that demonstrates a pseudorandom number generator algorithm. Start by showing how XOR operations work with binary representations..."
 
+### Unified Registry System
+
+With the growing number of datasets, we've moved from individual extraction scripts to a unified registry system (`dataset_registry.py`):
+
+```python
+# Register all extractors
+registry = DatasetRegistry()
+registry.register("dan4life_aoc2024", Dan4LifeExtractor())
+registry.register("szymon_ozog", SzymonOzogExtractor(repo_paths))
+registry.register("reducible", ReducibleExtractor())
+
+# Extract all at once
+samples = registry.extract_all()
+
+# Process with LLM
+registry.process_with_llm(samples, llm_function)
+```
+
 ### Two-Phase Processing Pipeline
-1. **Phase 1: Code Extraction** (`extract_dan4life_enhanced.py`)
-   - Extract all Manim code from repositories
-   - Analyze code features (has_xor, has_graphs, main_elements)
+
+1. **Phase 1: Code Extraction** (via Registry)
+   - Each dataset has a specialized extractor (e.g., `Dan4LifeExtractor`)
+   - Extractors analyze code features (has_xor, has_graphs, main_elements)
    - Create placeholder descriptions
    - Store metadata for later processing
 
-2. **Phase 2: LLM Description Generation** (`process_llm_descriptions.py`)
-   - Batch process all code samples with LLM
-   - Generate natural user requests based on code analysis
-   - Mark samples with `description_generated_by: "llm_gpt4"`
-   - Enable differential augmentation (3x for LLM vs 1.5x for human)
+2. **Phase 2: LLM Description Generation** (via Registry)
+   - Registry handles batch processing with `LLMDescriptionGenerator`
+   - Built-in caching to avoid redundant LLM calls
+   - Marks samples with `description_generated_by: "llm_gpt4"`
+   - Enables differential augmentation (3x for LLM vs 1.5x for human)
 
 ### Benefits of This Approach
 - **Quality**: Descriptions actually match what the code produces
@@ -227,5 +246,20 @@ Rather than storing transcripts now, it's better to:
 - Kutuzova (5), videos yes https://www.youtube.com/@deeplearningthatworks/videos, code yes (ipynb) https://github.com/sgalkina/animations/tree/main/notebooks  
 - Visualizing Deep Learning (2), videos yes (playlist) https://www.youtube.com/playlist?list=PLyPKqVSnetmEOp_g_hfabuRAs9ET-shl_, code yes https://github.com/vivek3141/dl-visualization  
 - Vivek3141 (22) https://www.youtube.com/@vcubingx/videos, code yes https://github.com/vivek3141/videos (might have overlap with Visualizing Deep Learning series)
+
+# Evaluated Datasets (Not Included)
+
+## Chilao Physics Animations
+- **Source**: https://github.com/chilaochen/manim_projects
+- **Evaluated**: 2025-07-11
+- **Decision**: NOT INCLUDED
+- **Reasons**:
+  - Language barrier (Chinese content requires translation)
+  - Heavy custom dependencies (`units` module)
+  - External asset requirements (SVGs, images)
+  - Small dataset (only 5 scene classes, not ~50 as initially thought)
+  - Complex import structure requiring significant refactoring
+- **Content**: Physics/math animations including Basel problem, Euler formula, measure theory
+- **Effort vs Benefit**: HIGH effort, LOW benefit
 
 

@@ -10,7 +10,7 @@ Use the `@` syntax to include files and directories in your Gemini prompts. The 
 
 **Single file analysis:**
 ```bash
-gemini -p "@prepare_data_enhanced.py Explain the dataset preparation pipeline and identify potential quality improvements"
+gemini -p "@prepare_data.py Explain the dataset preparation pipeline and identify potential quality improvements"
 ```
 
 **Multiple dataset files:**
@@ -98,13 +98,13 @@ gemini -p "@data_formatted_deduplicated/test.json Sample 50 random examples and 
 
 **Augmentation effectiveness:**
 ```bash
-gemini -p "@prepare_data_enhanced.py @data_formatted_with_sources/train.json Analyze the augmentation strategy. Are the prompt variations improving diversity or creating redundancy?"
+gemini -p "@prepare_data.py @data_formatted_with_sources/train.json Analyze the augmentation strategy. Are the prompt variations improving diversity or creating redundancy?"
 ```
 
 ### Dataset Integration Analysis
 **Compare dataset formats:**
 ```bash
-gemini -p "@DATASETS.md @prepare_data_enhanced.py How does the pipeline handle different dataset formats and field names? Are there edge cases it might miss?"
+gemini -p "@DATASETS.md @prepare_data.py @extractors/sources/ How does the plugin-based pipeline handle different dataset formats and field names? Are there edge cases it might miss?"
 ```
 
 **Potential dataset evaluation:**

@@ -1,0 +1,86 @@
+============================================================
+DATA QUALITY ANALYSIS REPORT
+============================================================
+
+Total samples analyzed: 410
+Perfect samples: 2113 (515.4%)
+Minor issues (1 issue): 1709 (416.8%)
+Moderate issues (2-3 issues): 280 (68.3%)
+Severe issues (4+ issues): 2 (0.5%)
+
+Samples by source:
+  bespoke_manim: 1000
+  manim_ce_examples: 27
+  manimbench: 414
+  reducible: 250
+  thanks_dataset: 2413
+
+Issues breakdown:
+
+  [CRITICAL] syntax_error: 849 samples
+    Examples:
+      - Sample 4 from thanks_dataset
+        Error: invalid syntax (<unknown>, line 1)...
+      - Sample 7 from thanks_dataset
+        Error: invalid syntax (<unknown>, line 14)...
+      - Sample 18 from thanks_dataset
+        Error: invalid syntax (<unknown>, line 42)...
+
+  [CRITICAL] missing_scene_structure: 2 samples
+    Examples:
+      - Sample 363 from thanks_dataset
+      - Sample 1310 from thanks_dataset
+
+  [CRITICAL] empty_construct: 1 samples
+    Examples:
+      - Sample 1477 from thanks_dataset
+
+  [HIGH] missing_imports: 254 samples
+    Examples:
+      - Sample 28 from thanks_dataset
+      - Sample 57 from thanks_dataset
+      - Sample 71 from thanks_dataset
+
+  [HIGH] placeholder_content: 2 samples
+    Examples:
+      - Sample 318 from thanks_dataset
+      - Sample 1619 from thanks_dataset
+
+  [HIGH] code_too_short: 2 samples
+    Examples:
+      - Sample 363 from thanks_dataset
+      - Sample 1310 from thanks_dataset
+
+  [MEDIUM] description_too_short: 59 samples
+
+  [MEDIUM] incomplete_code: 19 samples
+
+  [LOW] description_missing_math_context: 1068 samples
+
+  [LOW] description_has_placeholders: 50 samples
+
+
+Source-specific quality issues:
+
+  bespoke_manim (1000 samples):
+    - description_missing_math_context: 546 (54.6%)
+    - description_has_placeholders: 1 (0.1%)
+
+  manim_ce_examples (27 samples):
+    - description_has_placeholders: 27 (100.0%)
+    - description_missing_math_context: 9 (33.3%)
+
+  manimbench (414 samples):
+    - description_missing_math_context: 12 (2.9%)
+    - description_has_placeholders: 12 (2.9%)
+    - syntax_error: 1 (0.2%)
+
+  reducible (250 samples):
+    - incomplete_code: 5 (2.0%)
+
+  thanks_dataset (2413 samples):
+    - syntax_error: 848 (35.1%)
+    - description_missing_math_context: 501 (20.8%)
+    - missing_imports: 254 (10.5%)
+    - description_too_short: 59 (2.4%)
+    - incomplete_code: 14 (0.6%)

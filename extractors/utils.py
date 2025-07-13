@@ -5,6 +5,18 @@ from typing import Dict, Any, List
 import hashlib
 
 
+def fix_missing_imports(code: str) -> str:
+    """Add 'from manim import *' if no import statements found."""
+    code = code.strip()
+    
+    # Check if any import statement exists
+    if "import" not in code:
+        # Add the standard manim import
+        code = "from manim import *\n\n" + code
+    
+    return code
+
+
 def ensure_proper_code_format(code: str) -> str:
     """Ensure code has proper Scene class structure."""
     code = code.strip()
@@ -113,3 +125,78 @@ def augment_prompt(description: str, variation_idx: int = 0) -> str:
         description=description,
         description_lower=description_lower
     )
+
+
+def normalize_code(code: str) -> str:
+    """Normalize code for comparison purposes only.
+    
+    This removes comments, normalizes whitespace, and standardizes
+    formatting to detect duplicates. The original code is always
+    preserved in the dataset.
+    """
+    lines = []
+    
+    for line in code.split('\n'):
+        # Remove comments
+        line = line.split('#')[0].rstrip()
+        
+        # Skip empty lines
+        if not line.strip():
+            continue
+            
+        # Normalize whitespace (convert tabs to spaces, multiple spaces to single)
+        line = ' '.join(line.split())
+        
+        lines.append(line)
+    
+    # Join and normalize further
+    normalized = '\n'.join(lines)
+    
+    # Remove multiple newlines
+    while '\n\n' in normalized:
+        normalized = normalized.replace('\n\n', '\n')
+    
+    return normalized.strip()
+
+
+def calculate_similarity(text1: str, text2: str) -> float:
+    """Calculate similarity between two texts using a hybrid approach.
+    
+    Returns a value between 0 (completely different) and 1 (identical).
+    Uses hashing for exact matches and token-based Jaccard similarity for fuzzy matching.
+    """
+    if not text1 or not text2:
+        return 0.0
+    
+    # Stage 1: Quick hash check for exact matches
+    if hash(text1) == hash(text2):
+        return 1.0
+    
+    # Stage 2: Length-based early termination
+    len1, len2 = len(text1), len(text2)
+    if len1 == 0 or len2 == 0:
+        return 0.0
+    
+    len_ratio = min(len1, len2) / max(len1, len2)
+    if len_ratio < 0.5:  # Too different in size
+        return len_ratio * 0.5  # Scale down to indicate low similarity
+    
+    # Stage 3: Token-based Jaccard similarity
+    # Split on whitespace and common delimiters
+    tokens1 = set(text1.split())
+    tokens2 = set(text2.split())
+    
+    if not tokens1 or not tokens2:
+        return len_ratio * 0.5
+    
+    intersection = len(tokens1 & tokens2)
+    union = len(tokens1 | tokens2)
+    
+    if union == 0:
+        return 0.0
+    
+    jaccard = intersection / union
+    
+    # Combine length ratio and Jaccard similarity
+    # Weight Jaccard more heavily as it's more meaningful for code
+    return (jaccard * 0.8 + len_ratio * 0.2)

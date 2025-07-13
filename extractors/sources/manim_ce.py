@@ -20,7 +20,7 @@ class ManimCEExamplesExtractor(BaseExtractor):
     
     source_id = "manim_ce_examples"
     source_name = "Manim CE Documentation Examples"
-    priority = 3  # High quality official examples
+    priority = 5  # Highest quality - official examples
     
     def _validate_config(self) -> None:
         """Validate configuration."""
@@ -108,9 +108,9 @@ class ManimCEExamplesExtractor(BaseExtractor):
                 parent = parent.parent
             
             # Create the sample with placeholder description
-            # Following TRANSCRIPT_STRATEGY.md - we'll generate descriptions later
+            # We'll generate descriptions later using LLM with code analysis
             example = {
-                "description": "",  # Empty as per TRANSCRIPT_STRATEGY.md
+                "description": f"[PLACEHOLDER - Needs description] Create an animation for: {class_name} ({category})",
                 "code": code_text,
                 "metadata": {
                     "example_name": class_name,
@@ -142,8 +142,11 @@ class ManimCEExamplesExtractor(BaseExtractor):
                             code = re.sub(r'^```python\n', '', code)
                             code = re.sub(r'\n```$', '', code)
                             
+                            # Extract placeholder description from user message
+                            description = conversations[1].get("value", "")
+                            
                             yield {
-                                "description": "",  # Empty as per TRANSCRIPT_STRATEGY.md
+                                "description": description,
                                 "code": code,
                                 "metadata": item.get("metadata", {})
                             }
@@ -168,7 +171,7 @@ class ManimCEExamplesExtractor(BaseExtractor):
                             },
                             {
                                 "from": "user",
-                                "value": ""  # Empty as per TRANSCRIPT_STRATEGY.md
+                                "value": f"[PLACEHOLDER - Needs description] Create an animation for: {example['metadata']['example_name']} ({example['metadata']['category']})"
                             },
                             {
                                 "from": "assistant",

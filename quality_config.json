@@ -1,0 +1,77 @@
+{
+  "global_settings": {
+    "enable_quality_validation": false,
+    "quality_strict_mode": false,
+    "min_description_length": 30,
+    "min_code_length": 100,
+    "allow_placeholders": false
+  },
+  
+  "source_overrides": {
+    "vivek3141": {
+      "quality_strict_mode": false,
+      "min_description_length": 25,
+      "notes": "Older manim style, descriptions auto-generated"
+    },
+    
+    "thanks_dataset": {
+      "enable_quality_validation": true,
+      "quality_strict_mode": false,
+      "notes": "High syntax error rate, needs lenient validation"
+    },
+    
+    "manim_ce_examples": {
+      "quality_strict_mode": true,
+      "notes": "Official examples should have high quality"
+    },
+    
+    "bespoke_manim": {
+      "quality_strict_mode": true,
+      "notes": "High quality dataset, strict validation appropriate"
+    },
+    
+    "manimbench": {
+      "quality_strict_mode": true,
+      "notes": "Curated dataset, should maintain high standards"
+    },
+    
+    "reducible": {
+      "quality_strict_mode": true,
+      "notes": "Educational content, quality important"
+    }
+  },
+  
+  "quality_thresholds": {
+    "max_syntax_error_rate": 0.05,
+    "max_empty_construct_rate": 0.01,
+    "max_missing_imports_rate": 0.10,
+    "min_animation_method_presence": 0.80,
+    "min_math_object_presence": 0.70
+  },
+  
+  "validation_rules": {
+    "critical": [
+      "syntax_error",
+      "missing_scene_structure",
+      "empty_construct",
+      "code_too_short"
+    ],
+    "high": [
+      "missing_imports",
+      "placeholder_content",
+      "incomplete_code",
+      "description_too_short"
+    ],
+    "medium": [
+      "missing_animation_methods",
+      "missing_math_objects",
+      "generic_description",
+      "description_missing_math_context"
+    ],
+    "low": [
+      "unbalanced_parentheses",
+      "description_formatting",
+      "class_name_mismatch"
+    ]
+  }
+}

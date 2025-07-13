@@ -1,0 +1,90 @@
+{
+  "global_settings": {
+    "enable_quality_validation": true,
+    "quality_strict_mode": false,
+    "min_description_length": 10,
+    "min_code_length": 50,
+    "allow_placeholders": true,
+    "allow_syntax_errors": false
+  },
+  
+  "source_overrides": {
+    "vivek3141": {
+      "quality_strict_mode": false,
+      "min_description_length": 10,
+      "notes": "Older manim style, descriptions auto-generated"
+    },
+    
+    "thanks_dataset": {
+      "enable_quality_validation": true,
+      "quality_strict_mode": false,
+      "allow_syntax_errors": true,
+      "notes": "High syntax error rate, but we want to keep for diversity"
+    },
+    
+    "manim_ce_examples": {
+      "quality_strict_mode": true,
+      "notes": "Official examples should have high quality"
+    },
+    
+    "bespoke_manim": {
+      "quality_strict_mode": true,
+      "notes": "High quality dataset, strict validation appropriate"
+    },
+    
+    "manimbench": {
+      "quality_strict_mode": true,
+      "notes": "Curated dataset, should maintain high standards"
+    },
+    
+    "reducible": {
+      "quality_strict_mode": true,
+      "notes": "Educational content, quality important"
+    },
+    
+    "kutuzova": {
+      "quality_strict_mode": false,
+      "allow_placeholders": true,
+      "notes": "Jupyter notebooks may have different structure"
+    },
+    
+    "vivek3141_dl": {
+      "quality_strict_mode": false,
+      "notes": "Deep learning focus, may have specialized code"
+    }
+  },
+  
+  "quality_thresholds": {
+    "max_syntax_error_rate": 0.30,
+    "max_empty_construct_rate": 0.05,
+    "max_missing_imports_rate": 0.20,
+    "min_animation_method_presence": 0.50,
+    "min_math_object_presence": 0.40
+  },
+  
+  "validation_rules": {
+    "critical": [
+      "empty_construct",
+      "code_too_short"
+    ],
+    "high": [
+      "missing_imports",
+      "incomplete_code"
+    ],
+    "medium": [
+      "missing_animation_methods",
+      "missing_math_objects",
+      "generic_description"
+    ],
+    "low": [
+      "syntax_error",
+      "missing_scene_structure",
+      "placeholder_content",
+      "description_too_short",
+      "description_missing_math_context",
+      "unbalanced_parentheses",
+      "description_formatting",
+      "class_name_mismatch"
+    ]
+  }
+}

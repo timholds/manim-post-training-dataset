@@ -12,7 +12,7 @@ from collections import defaultdict
 from datetime import datetime
 
 from extractors import get_registry
-from extractors.utils import create_conversation, normalize_description, augment_prompt
+from extractors.utils import create_conversation, normalize_description, augment_prompt, normalize_code, calculate_similarity
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -20,75 +20,119 @@ logger = logging.getLogger(__name__)
 
 def deduplicate_data(all_data: List[Dict[str, Any]], source_priorities: Dict[str, int]) -> Tuple[List[Dict], Dict[str, Any]]:
     """
-    Remove duplicate descriptions across datasets.
+    Remove only obvious duplicates based on BOTH description and code similarity.
+    Keeps items unless we're very sure they're duplicates.
     Returns deduplicated data and statistics.
     """
-    # Group by normalized description
-    desc_groups = defaultdict(list)
-    
-    for item in all_data:
-        norm_desc = normalize_description(item['description'])
-        desc_groups[norm_desc].append(item)
-    
     # Statistics tracking
     stats = {
         'total_raw': len(all_data),
-        'unique_descriptions': len(desc_groups),
         'duplicates_removed': 0,
         'duplicates_by_source': defaultdict(int),
         'kept_by_source': defaultdict(int),
-        'cross_source_duplicates': 0,
-        'within_source_duplicates': 0,
-        'examples_removed': []
+        'exact_code_duplicates': 0,
+        'high_similarity_duplicates': 0,
+        'examples_removed': [],
+        'similarity_distribution': defaultdict(int)  # Track similarity scores
     }
     
-    # Process each group of duplicates
-    deduplicated = []
+    # Track which items we've already marked for removal
+    to_remove = set()
     
-    for norm_desc, items in desc_groups.items():
-        if len(items) == 1:
-            # No duplicates
-            deduplicated.append(items[0])
-            stats['kept_by_source'][items[0]['source']] += 1
-        else:
-            # Found duplicates - need to choose best one
-            sources = [item['source'] for item in items]
-            unique_sources = set(sources)
+    # Normalize all items once for efficiency
+    normalized_items = []
+    for i, item in enumerate(all_data):
+        normalized_items.append({
+            'index': i,
+            'item': item,
+            'norm_desc': normalize_description(item['description']),
+            'norm_code': normalize_code(item['code'])
+        })
+    
+    # Compare each item with all others
+    for i in range(len(normalized_items)):
+        if i in to_remove:
+            continue
             
-            if len(unique_sources) > 1:
-                stats['cross_source_duplicates'] += 1
-            else:
-                stats['within_source_duplicates'] += 1
+        for j in range(i + 1, len(normalized_items)):
+            if j in to_remove:
+                continue
             
-            # Sort by source priority
-            sorted_items = sorted(items, key=lambda x: source_priorities.get(x['source'], 0), reverse=True)
+            item1 = normalized_items[i]
+            item2 = normalized_items[j]
             
-            # Keep the best one
-            best_item = sorted_items[0]
-            deduplicated.append(best_item)
-            stats['kept_by_source'][best_item['source']] += 1
+            # Calculate similarities
+            desc_sim = calculate_similarity(item1['norm_desc'], item2['norm_desc'])
+            code_sim = calculate_similarity(item1['norm_code'], item2['norm_code'])
             
-            # Track what we removed
-            for item in sorted_items[1:]:
-                stats['duplicates_removed'] += 1
-                stats['duplicates_by_source'][item['source']] += 1
+            # Track similarity distribution (rounded to nearest 0.1)
+            stats['similarity_distribution'][f"{round(code_sim, 1):.1f}"] += 1
+            
+            # Decision logic: only remove if we're VERY sure it's a duplicate
+            is_duplicate = False
+            duplicate_reason = ""
+            
+            # Case 1: Exact code match (code_sim == 1.0)
+            if code_sim == 1.0:
+                is_duplicate = True
+                duplicate_reason = "exact_code_match"
+                stats['exact_code_duplicates'] += 1
+            
+            # Case 2: Both description AND code are extremely similar
+            elif desc_sim > 0.95 and code_sim > 0.95:
+                is_duplicate = True
+                duplicate_reason = f"high_similarity (desc={desc_sim:.2f}, code={code_sim:.2f})"
+                stats['high_similarity_duplicates'] += 1
+            
+            # If it's a duplicate, decide which to keep
+            if is_duplicate:
+                # Choose which to keep based on priority
+                priority1 = source_priorities.get(item1['item']['source'], 0)
+                priority2 = source_priorities.get(item2['item']['source'], 0)
                 
-                # Save some examples (limit to prevent huge files)
+                if priority1 >= priority2:
+                    # Keep item1, remove item2
+                    to_remove.add(j)
+                    removed_item = item2
+                    kept_item = item1
+                else:
+                    # Keep item2, remove item1
+                    to_remove.add(i)
+                    removed_item = item1
+                    kept_item = item2
+                    break  # No need to compare item1 with others if it's being removed
+                
+                # Track statistics
+                stats['duplicates_removed'] += 1
+                stats['duplicates_by_source'][removed_item['item']['source']] += 1
+                
+                # Save example (limit to prevent huge files)
                 if len(stats['examples_removed']) < 100:
                     stats['examples_removed'].append({
-                        'description': item['description'],
-                        'source': item['source'],
-                        'kept_source': best_item['source'],
-                        'normalized_desc': norm_desc
+                        'description': removed_item['item']['description'],
+                        'code_preview': removed_item['item']['code'][:200] + '...' if len(removed_item['item']['code']) > 200 else removed_item['item']['code'],
+                        'source': removed_item['item']['source'],
+                        'kept_source': kept_item['item']['source'],
+                        'reason': duplicate_reason,
+                        'desc_similarity': round(desc_sim, 3),
+                        'code_similarity': round(code_sim, 3)
                     })
+    
+    # Build final deduplicated list
+    deduplicated = []
+    for i, norm_item in enumerate(normalized_items):
+        if i not in to_remove:
+            deduplicated.append(norm_item['item'])
+            stats['kept_by_source'][norm_item['item']['source']] += 1
     
     # Log summary
     logger.info(f"\nDeduplication Summary:")
     logger.info(f"  Original samples: {stats['total_raw']:,}")
     logger.info(f"  Unique samples: {len(deduplicated):,}")
     logger.info(f"  Duplicates removed: {stats['duplicates_removed']:,}")
-    logger.info(f"  Cross-source duplicates: {stats['cross_source_duplicates']:,}")
-    logger.info(f"  Within-source duplicates: {stats['within_source_duplicates']:,}")
+    logger.info(f"    - Exact code matches: {stats['exact_code_duplicates']:,}")
+    logger.info(f"    - High similarity (>95% both): {stats['high_similarity_duplicates']:,}")
+    logger.info(f"  Reduction: {stats['duplicates_removed']/stats['total_raw']*100:.1f}%")
     
     return deduplicated, stats
 
@@ -111,15 +155,35 @@ def prepare_datasets(
     use_augmentation: bool = False,
     deduplicate: bool = True,
     test_ratio: float = 0.1,
-    seed: int = 42
+    seed: int = 42,
+    quality_config_path: Optional[str] = None,
+    no_quality_validation: bool = False,
+    quality_strict: bool = False
 ):
     """Prepare datasets using the plugin-based extractor system."""
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
     
-    # Initialize registry and auto-discover extractors
+    # Load quality configuration if provided
+    quality_config = {}
+    if quality_config_path and Path(quality_config_path).exists():
+        with open(quality_config_path, 'r') as f:
+            quality_config = json.load(f)
+        logger.info(f"Loaded quality configuration from {quality_config_path}")
+    
+    # Apply command-line overrides
+    if no_quality_validation:
+        quality_config["global_settings"] = quality_config.get("global_settings", {})
+        quality_config["global_settings"]["enable_quality_validation"] = False
+        logger.info("Quality validation disabled via command line")
+    elif quality_strict:
+        quality_config["global_settings"] = quality_config.get("global_settings", {})
+        quality_config["global_settings"]["enable_quality_validation"] = True
+        quality_config["global_settings"]["quality_strict_mode"] = True
+        logger.info("Strict quality validation enabled via command line")
+    
+    # Get already initialized registry (auto_discover was called in main)
     registry = get_registry()
-    registry.auto_discover()
     
     logger.info(f"Discovered extractors: {registry.list_sources()}")
     
@@ -141,8 +205,15 @@ def prepare_datasets(
         logger.info(f"\nProcessing source: {source_id}")
         
         try:
+            # Get extractor config
+            extractor_config = quality_config.get("global_settings", {}).copy()
+            
+            # Apply source-specific overrides
+            if source_id in quality_config.get("source_overrides", {}):
+                extractor_config.update(quality_config["source_overrides"][source_id])
+            
             # Get extractor instance
-            extractor = registry.get_extractor(source_id)
+            extractor = registry.get_extractor(source_id, extractor_config)
             source_priorities[source_id] = extractor.priority
             
             # Extract samples
@@ -245,15 +316,16 @@ def prepare_datasets(
             "timestamp": datetime.now().isoformat(),
             "summary": {
                 "total_raw_samples": dedup_stats['total_raw'],
-                "unique_samples": dedup_stats['unique_descriptions'],
+                "unique_samples": len(all_data),
                 "duplicates_removed": dedup_stats['duplicates_removed'],
                 "reduction_percentage": (dedup_stats['duplicates_removed'] / dedup_stats['total_raw'] * 100) if dedup_stats['total_raw'] > 0 else 0,
-                "cross_source_duplicates": dedup_stats['cross_source_duplicates'],
-                "within_source_duplicates": dedup_stats['within_source_duplicates']
+                "exact_code_duplicates": dedup_stats['exact_code_duplicates'],
+                "high_similarity_duplicates": dedup_stats['high_similarity_duplicates']
             },
             "duplicates_by_source": dict(dedup_stats['duplicates_by_source']),
             "kept_by_source": dict(dedup_stats['kept_by_source']),
-            "source_priority": source_priorities
+            "source_priority": source_priorities,
+            "similarity_distribution": dict(dedup_stats['similarity_distribution'])
         }
         
         with open(dedup_report_file, 'w') as f:
@@ -294,6 +366,9 @@ def main():
     parser.add_argument("--test-ratio", type=float, default=0.1, help="Test set ratio")
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
     parser.add_argument("--list-sources", action="store_true", help="List available sources and exit")
+    parser.add_argument("--quality-config", default="quality_config.json", help="Quality configuration file")
+    parser.add_argument("--no-quality-validation", action="store_true", help="Disable quality validation (overrides config file)")
+    parser.add_argument("--quality-strict", action="store_true", help="Enable strict quality validation (overrides config file)")
     
     args = parser.parse_args()
     
@@ -316,7 +391,10 @@ def main():
         use_augmentation=args.augmentation,
         deduplicate=not args.no_deduplicate,
         test_ratio=args.test_ratio,
-        seed=args.seed
+        seed=args.seed,
+        quality_config_path=args.quality_config,
+        no_quality_validation=args.no_quality_validation,
+        quality_strict=args.quality_strict
     )
 
 

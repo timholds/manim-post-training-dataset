@@ -24,6 +24,11 @@ class BaseExtractor(ABC):
         """Initialize extractor with optional configuration."""
         self.config = config or {}
         self._validate_config()
+        
+        # Quality validation settings
+        self.enable_quality_validation = self.config.get("enable_quality_validation", True)
+        self.quality_strict_mode = self.config.get("quality_strict_mode", True)
+        self._quality_validator = None
     
     @abstractmethod
     def _validate_config(self) -> None:
@@ -74,9 +79,28 @@ class BaseExtractor(ABC):
     
     def __iter__(self) -> Iterator[Dict[str, Any]]:
         """Make extractor iterable for convenience."""
+        # Lazy import to avoid circular dependency
+        if self.enable_quality_validation and self._quality_validator is None:
+            from .quality_validator import QualityValidator
+            self._quality_validator = QualityValidator(strict_mode=self.quality_strict_mode)
+        
         for sample in self.extract():
             transformed = self.transform_sample(sample)
-            if self.validate_sample(transformed):
-                yield transformed
-            else:
+            
+            # Basic validation
+            if not self.validate_sample(transformed):
                 logger.debug(f"Skipped invalid sample from {self.source_id}")
+                continue
+            
+            # Quality validation if enabled
+            if self.enable_quality_validation:
+                is_valid, issues = self._quality_validator.validate_sample(transformed)
+                if not is_valid:
+                    logger.debug(f"Quality validation failed for {self.source_id}: {issues[:2]}")
+                    continue
+            
+            yield transformed
+        
+        # Log quality report if validation was used
+        if self.enable_quality_validation and self._quality_validator:
+            logger.info(f"\n{self.source_id} Quality Report:\n{self._quality_validator.get_validation_report()}")

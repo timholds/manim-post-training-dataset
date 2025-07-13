@@ -21,7 +21,7 @@ class Dan4LifeAoC2024Extractor(BaseExtractor):
     
     def _validate_config(self) -> None:
         """Validate configuration."""
-        self.file_path = Path(self.config.get("file", "data_dan4life/dan4life_aoc2024.jsonl"))
+        self.file_path = Path(self.config.get("file", "data/data_dan4life/dan4life_aoc2024.jsonl"))
         if not self.file_path.exists():
             logger.warning(f"Data file not found: {self.file_path}")
     
@@ -81,7 +81,7 @@ class SzymonOzogExtractor(BaseExtractor):
     
     def _validate_config(self) -> None:
         """Validate configuration."""
-        self.file_path = Path(self.config.get("file", "data_szymon_ozog/szymon_ozog_processed.jsonl"))
+        self.file_path = Path(self.config.get("file", "data/data_szymon_ozog/szymon_ozog_processed.jsonl"))
         if not self.file_path.exists():
             logger.warning(f"Data file not found: {self.file_path}")
     

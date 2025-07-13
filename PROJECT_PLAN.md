@@ -15,19 +15,23 @@ Construct a perfect manim fine-tuning dataset from multiple sources with high-qu
 - [x] **Szymon Ozog** - 29 samples, 15 after deduplication (GitHub)
   - Information Theory: 10 scenes
   - GPU Programming: 19 scenes
+- [x] **Reducible** - 250 samples (GitHub) ✅ NEW!
+  - Computer Science animations from popular YouTube channel
+  - Topics: algorithms, data structures, FFT, compression, graph theory
+  - Years covered: 2019-2022
 
 #### Infrastructure
 - [x] Unified conversation format implementation
-- [x] Deduplication pipeline (removes ~40% duplicates)
+- [x] Deduplication pipeline (removes ~33% duplicates)
 - [x] YouTube metadata integration for transcript enhancement
 - [x] Extraction scripts for GitHub repositories
 - [x] Enhanced data preparation pipeline
 
-#### Current Statistics
-- **Total Unique Samples**: 3,869
-- **Training Set**: 3,483 samples
-- **Test Set**: 386 samples
-- **Sources**: 5 active (all working properly)
+#### Current Statistics (as of July 11, 2025)
+- **Total Unique Samples**: 4,077 + ~310 new = ~4,387 expected
+- **Training Set**: 3,670 samples (9,185 with augmentation)
+- **Test Set**: 407 samples
+- **Sources**: 9 active (6 integrated, 3 newly added extractor-based)
 
 ### 🚧 In Progress
 
@@ -42,18 +46,26 @@ Construct a perfect manim fine-tuning dataset from multiple sources with high-qu
 ### 📋 Planned
 
 #### Quick Win Datasets (from ROADMAP.md)
-- [ ] Manim CE Examples (~20 samples)
+- [ ] Manim CE Examples (~20 samples) - Already extracted in data_manim_ce_examples.jsonl
 - [ ] The Manim Repository (9 samples)
 - [ ] Kilacola Chemistry (~7 samples)
 
 #### Medium Effort Datasets
-- [ ] Vivek3141 (~40-45 samples)
+- [x] **Vivek3141** (~300 samples) - ✅ Integrated!
+  - Main videos repository with educational animations
+  - Topics: math, AI, physics, computational concepts
+- [x] **Vivek3141 DL Series** (~5 samples) - ✅ Integrated!
+  - Specialized deep learning visualizations
+  - High priority (5) for quality DL content
+- [x] **Kutuzova (Deep Learning That Works)** (~5 samples) - ✅ Integrated!
+  - Jupyter notebook-based animations
+  - Deep learning educational content
 - [ ] A Little More Than An Introduction To Series
+- [ ] Benjamin Hackl (~10-15 samples from manim-with-ease/manim-content)
 
 #### Large Datasets
-- [ ] Reducible (~50 samples)
-- [ ] Benjamin Hackl (~100 samples)
 - [ ] Chilao (~50 samples)
+- [ ] 3Blue1Brown Archive (if available)
 
 #### Quality Improvements
 - [ ] Implement transcript-based description generation

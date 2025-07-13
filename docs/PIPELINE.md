@@ -2,132 +2,250 @@
 
 ## Overview
 
-The `prepare_data_enhanced.py` script provides a comprehensive data pipeline for preparing multiple Manim datasets for fine-tuning code generation models.
+The `prepare_data.py` script provides a plugin-based data pipeline for preparing multiple Manim datasets for fine-tuning code generation models. The architecture allows easy addition of new data sources without modifying core code.
+
+## Architecture
+
+### Plugin-Based System
+- **Extractors**: Each data source is a self-contained plugin in `extractors/sources/`
+- **Auto-Discovery**: New extractors are automatically discovered - no manual registration
+- **Standardized Interface**: All extractors inherit from `BaseExtractor`
+- **Priority System**: Sources have priorities (1-5) for intelligent deduplication
+
+### Core Components
+1. **prepare_data.py**: Main orchestration script (~300 lines)
+2. **extractors/base.py**: Abstract base class defining the extractor interface
+3. **extractors/registry.py**: Dynamic registry for extractor discovery
+4. **extractors/sources/**: Individual extractor plugins
 
 ## Features
 
-- **Multi-Dataset Support**: Automatically downloads and processes datasets from HuggingFace and Kaggle
-- **Auto Field Detection**: Intelligently detects dataset schema variations
-- **Data Augmentation**: Applies 2.5x augmentation through prompt variations
-- **Quality Assurance**: Validates code syntax and ensures proper Scene class structure
+- **Multi-Dataset Support**: Automatically downloads and processes datasets from HuggingFace, Kaggle, and local files
+- **Intelligent Deduplication**: Removes duplicates based on source priorities
+- **Data Augmentation**: Optional prompt variations for increased diversity
+- **Quality Validation**: Ensures code has proper Scene class structure
 - **Flexible Processing**: Choose specific datasets or process all available
-- **Deduplication**: Removes duplicate descriptions across and within datasets (48.5% reduction achieved!)
-  - Prioritizes high-quality sources (ManimBench > Bespoke > Thanks)
-  - Generates detailed reports of removed duplicates
+- **Detailed Reporting**: Generates statistics and deduplication reports
 
 ## Usage
 
-### Basic Usage
+### Basic Commands
 ```bash
-# Process all available datasets
-python prepare_data_enhanced.py
+# List all available data sources
+python prepare_data.py --list-sources
+
+# Process all available datasets with deduplication (default)
+python prepare_data.py
 
 # Process specific datasets
-python prepare_data_enhanced.py --datasets bespoke_manim thanks_dataset
+python prepare_data.py --sources bespoke_manim manimbench
 
-# Disable augmentation
-python prepare_data_enhanced.py --no-augmentation
+# Enable augmentation (creates prompt variations)
+python prepare_data.py --augmentation
 
 # Custom output directory
-python prepare_data_enhanced.py --output-dir custom_data
+python prepare_data.py --output-dir custom_data
 
-# Enable deduplication (RECOMMENDED!)
-python prepare_data_enhanced.py --deduplicate --output-dir data_formatted_deduplicated
+# Disable deduplication (not recommended)
+python prepare_data.py --no-deduplicate
 ```
 
-### Dataset Configuration
+### Available Data Sources
 
-The script supports the following datasets out of the box:
+Run `python prepare_data.py --list-sources` to see all available sources:
 
-1. **Bespoke Manim** (HuggingFace)
-   - 1,000 high-quality examples with rich descriptions
-   - Auto-detects fields: `question` → description, `python_code` → code
+1. **manimbench** (Priority: 4)
+   - Highest quality dataset with reviewed descriptions
+   - ~400 examples from Kaggle
 
-2. **Thanks Dataset** (HuggingFace)
+2. **bespoke_manim** (Priority: 3)
+   - 1,000 examples with rich context and transcripts
+   - From HuggingFace
+
+3. **thanks_dataset** (Priority: 2)
    - 4,400 examples with varied complexity
-   - Fields: `input` → description, `output` → code
+   - From HuggingFace
 
-3. ~~**ManimCodeGen** (HuggingFace)~~
-   - Removed: 100% overlap with other datasets (all 1,622 samples were duplicates)
+4. **dan4life_aoc2024** (Priority: 2)
+   - Advent of Code 2024 animations
+   - Local dataset
 
-4. **ManimBench** (Kaggle) ✅
-   - 417 high-quality examples with detailed descriptions
-   - Fields: `Reviewed Description` → description, `Code` → code
-   - 100% unique content (no overlap with other datasets)
+5. **szymon_ozog** (Priority: 2)
+   - Educational Manim examples
+   - Local dataset
 
-## Data Format
+## Adding New Data Sources
 
-### Input Processing
-- Automatically strips markdown code blocks
-- Validates Python syntax
-- Ensures proper imports and Scene class structure
+### Step 1: Create Extractor
 
-### Output Format (JSON Lines)
+Create a new file in `extractors/sources/your_source.py`:
+
+```python
+from typing import Iterator, Dict, Any, Optional
+from ..base import BaseExtractor
+from ..registry import register_extractor
+
+@register_extractor
+class YourSourceExtractor(BaseExtractor):
+    # Required attributes
+    source_id = "your_source"
+    source_name = "Your Data Source Name"
+    priority = 3  # 1-5, higher = keep when deduplicating
+    
+    def _validate_config(self) -> None:
+        """Validate and set default configuration."""
+        self.data_path = self.config.get("path", "default/path.jsonl")
+    
+    def estimate_sample_count(self) -> Optional[int]:
+        """Return estimated number of samples."""
+        return 1000  # Or None if unknown
+    
+    def extract(self) -> Iterator[Dict[str, Any]]:
+        """Extract samples from your source."""
+        # Your extraction logic here
+        for item in your_data_source:
+            yield {
+                "description": item["prompt"],
+                "code": item["manim_code"],
+                "metadata": {  # Optional
+                    "source_file": "example.json",
+                    "extra_info": "value"
+                }
+            }
+```
+
+### Step 2: Test Your Extractor
+
+```python
+# Test script
+from extractors import get_registry
+
+registry = get_registry()
+registry.auto_discover()
+
+# Test your extractor
+extractor = registry.get_extractor("your_source")
+for i, sample in enumerate(extractor):
+    print(f"Sample {i}: {sample['description'][:50]}...")
+    if i >= 5:
+        break
+```
+
+### Step 3: Run Pipeline
+
+Your source is now available:
+```bash
+python prepare_data.py --sources your_source
+```
+
+## Output Structure
+
+```
+output_dir/
+├── train.json          # Training data (JSONL format)
+├── test.json           # Test data (10% split)
+├── dataset_stats.json  # Statistics and metadata
+├── deduplication_report.json  # Deduplication details
+└── removed_duplicates.json    # Examples of removed duplicates
+```
+
+### Data Format
+
+Each line in train.json/test.json is a JSON object:
 ```json
 {
   "conversations": [
     {"from": "system", "value": "You are a Manim code generator..."},
-    {"from": "user", "value": "Create animation that..."},
-    {"from": "assistant", "value": "```python\nfrom manim import *\n...```"}
+    {"from": "user", "value": "Create an animation that shows..."},
+    {"from": "assistant", "value": "```python\n...\n```"}
   ],
-  "source": "dataset_name"  // Source tracking field
+  "source": "bespoke_manim"
 }
 ```
 
-### Augmentation Strategy
-The pipeline applies intelligent augmentation to training data:
-- Original prompt
-- "Create a Manim animation that..."
-- "Write Manim code to..."
-- "Generate a Manim scene that..."
-- And more variations
+## Deduplication Strategy
 
-## Output Files
+1. **Normalization**: Descriptions are normalized (lowercase, whitespace)
+2. **Priority-Based**: When duplicates found, keep highest priority source
+3. **Source Priorities**:
+   - manimbench: 4 (highest quality, reviewed)
+   - bespoke_manim: 3 (rich context)
+   - thanks_dataset: 2 (large dataset)
+   - Others: 1-2 (configurable per source)
 
-Default output directory: `data_formatted_with_sources/` (or `data_formatted_deduplicated/` with --deduplicate)
-- `train.json` - Augmented training data with source tracking
-- `test.json` - Test split (10% of data) with source tracking
-- `dataset_stats.json` - Detailed statistics including source distribution
+## Configuration
 
-### With Deduplication Enabled
-Additional files created:
-- `deduplication_report.json` - Comprehensive deduplication statistics
-- `removed_duplicates.json` - Examples of removed duplicate entries
+### Extractor Configuration
 
-### Source Tracking
-Each sample includes a `"source"` field indicating which dataset it came from:
-- `"manimbench"` - From ManimBench (Kaggle)
-- `"bespoke_manim"` - From Bespoke Manim (HuggingFace)
-- `"thanks_dataset"` - From Thanks Dataset (HuggingFace)
-- ~~`"manim_codegen"`~~ - Removed due to 100% duplication
-
-## Adding New Datasets
-
-To add a new dataset, edit the `DATASETS` dictionary in the script:
-
+Pass configuration when processing:
 ```python
-"new_dataset": {
-    "type": "huggingface",  # or "kaggle"
-    "dataset_name": "org/dataset-name",
-    "description_field": "instruction",
-    "code_field": "output",
-    "split": "train",
-    "expected_samples": 1000
+# In your extractor
+config = {
+    "file": "custom/path/data.jsonl",
+    "cache_dir": "/tmp/cache",
+    "max_samples": 1000
 }
+
+# When running
+python prepare_data.py --sources your_source --config your_source:config.json
 ```
+
+### Global Options
+
+- `--seed`: Random seed for reproducibility
+- `--test-ratio`: Test set split ratio (default: 0.1)
+- `--augmentation`: Enable prompt variations
+- `--no-deduplicate`: Disable deduplication
+
+## Best Practices
+
+1. **Always Use Deduplication**: Ensures dataset quality
+2. **Test New Extractors**: Validate output before full processing
+3. **Set Appropriate Priority**: Based on data quality
+4. **Include Metadata**: Helps with debugging and analysis
+5. **Handle Errors Gracefully**: Log warnings, don't crash
+6. **Validate Early**: Check data quality in the extractor
 
 ## Troubleshooting
 
-### Kaggle Datasets
-1. Install kagglehub: `uv pip install kagglehub`
-2. Get API token from https://www.kaggle.com/account
-3. Place `kaggle.json` in `~/.kaggle/`
+### Common Issues
 
-### Field Detection
-If a dataset has non-standard field names, the script will:
-1. List available columns
-2. Attempt auto-detection based on common patterns
-3. Use the detected fields or skip if unable to detect
+1. **Extractor Not Found**
+   - Ensure file is in `extractors/sources/`
+   - Check `@register_extractor` decorator
+   - Verify `source_id` is set
 
-### Memory Issues
-For large datasets, the script caches downloaded data in `~/.cache/manim_datasets/` to avoid re-downloading.
+2. **Import Errors**
+   - Use relative imports: `from ..base import`
+   - Ensure `__init__.py` exists in directories
+
+3. **Empty Output**
+   - Check validation logic in extractor
+   - Verify data paths are correct
+   - Look for logged warnings
+
+### Debug Mode
+
+```bash
+# Verbose logging
+python prepare_data.py --sources your_source --verbose
+
+# Test single source
+python prepare_data.py --sources your_source --output-dir test_output
+```
+
+## Performance
+
+- Processes ~5,000 samples in ~5 seconds
+- Memory efficient with iterator-based extraction
+- Caches downloaded datasets to avoid re-downloading
+- Parallel processing for multiple sources
+
+## Migration from Old Pipeline
+
+If you have custom scripts using the old `prepare_data_enhanced.py`:
+
+1. Create an extractor for your custom data
+2. Move extraction logic to the `extract()` method
+3. Update scripts to use `prepare_data.py`
+4. See `docs/migration_guide.md` for detailed instructions

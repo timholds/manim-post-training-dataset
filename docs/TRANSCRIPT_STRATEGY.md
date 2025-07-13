@@ -38,17 +38,30 @@ Generate a request that captures what the animation shows visually.
 
 ## Recommended Implementation
 
-### 1. Add Video Metadata During Extraction
+### 1. Add Placeholder Descriptions During Extraction
+For sources that need description generation, use placeholder text:
+```python
+# Example from extractors/sources/manim_ce.py
+description = f"[PLACEHOLDER - Needs description] Create an animation for: {class_name} ({category})"
+```
+
+This allows:
+- Easy identification of samples needing descriptions
+- Batch processing with LLMs later
+- Validation that descriptions were generated
+
+### 2. Add Video Metadata During Extraction
 ```python
 # In extract_dan4life_enhanced.py
 metadata = {
     "youtube_url": f"https://youtube.com/@dan4life/day{day}",  # If known
     "has_video": True,
     "transcript_available": None,  # Check later
+    "needs_description": True,  # Track placeholder status
 }
 ```
 
-### 2. Fetch Transcript When Generating Descriptions
+### 3. Fetch Transcript When Generating Descriptions
 ```python
 def generate_description_with_transcript(code, metadata):
     if metadata.get("youtube_url"):
@@ -71,7 +84,7 @@ def generate_description_with_transcript(code, metadata):
     return llm_call(prompt)
 ```
 
-### 3. Cache Transcript + Code → Description Mapping
+### 4. Cache Transcript + Code → Description Mapping
 ```python
 # Enhanced cache key includes transcript
 cache_key = hash(code + transcript + metadata)
@@ -83,6 +96,23 @@ cache_key = hash(code + transcript + metadata)
 2. **Flexibility**: Can try with/without transcripts
 3. **Freshness**: Always get current transcript
 4. **Experimentation**: Easy to A/B test transcript impact
+
+## Placeholder Processing
+
+To find and process all samples with placeholder descriptions:
+
+```python
+# Find all samples needing descriptions
+samples_needing_descriptions = []
+for sample in dataset:
+    if "[PLACEHOLDER" in sample["description"] or sample.get("metadata", {}).get("needs_description"):
+        samples_needing_descriptions.append(sample)
+
+# Batch process with LLM
+for batch in chunks(samples_needing_descriptions, batch_size=10):
+    descriptions = generate_descriptions_batch(batch)
+    update_dataset(batch, descriptions)
+```
 
 ## Example Transcript Usage
 

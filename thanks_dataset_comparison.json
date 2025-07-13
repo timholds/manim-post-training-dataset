@@ -1,0 +1,79 @@
+{
+  "thanks_dataset": {
+    "total_samples": 1797,
+    "avg_quality": 96.96438508625486,
+    "issues": {
+      "missing_imports": 227,
+      "short_descriptions": 58,
+      "no_math_objects": 224,
+      "short_code": 11,
+      "has_placeholders": 24
+    },
+    "avg_desc_length": 614.0829159710629,
+    "avg_code_length": 1470.0634390651085
+  },
+  "vivek3141": {
+    "total_samples": 320,
+    "avg_quality": 98.3125,
+    "issues": {
+      "no_math_objects": 41,
+      "short_code": 14,
+      "no_animation_methods": 17,
+      "has_placeholders": 11
+    },
+    "avg_desc_length": 87.678125,
+    "avg_code_length": 1542.31875
+  },
+  "bespoke_manim": {
+    "total_samples": 904,
+    "avg_quality": 98.93805309734513,
+    "issues": {
+      "has_placeholders": 96
+    },
+    "avg_desc_length": 116.34734513274336,
+    "avg_code_length": 4051.25
+  },
+  "reducible": {
+    "total_samples": 208,
+    "avg_quality": 99.11057692307692,
+    "issues": {
+      "no_math_objects": 18,
+      "has_placeholders": 8,
+      "short_code": 1,
+      "no_animation_methods": 1
+    },
+    "avg_desc_length": 110.94711538461539,
+    "avg_code_length": 5528.995192307692
+  },
+  "manimbench": {
+    "total_samples": 368,
+    "avg_quality": 97.54076086956522,
+    "issues": {
+      "short_code": 41,
+      "no_math_objects": 95,
+      "short_descriptions": 1,
+      "has_placeholders": 1
+    },
+    "avg_desc_length": 299.4130434782609,
+    "avg_code_length": 476.64402173913044
+  },
+  "vivek3141_dl": {
+    "total_samples": 16,
+    "avg_quality": 99.6875,
+    "issues": {
+      "no_math_objects": 1
+    },
+    "avg_desc_length": 90.5625,
+    "avg_code_length": 14295.5
+  },
+  "kutuzova": {
+    "total_samples": 7,
+    "avg_quality": 90,
+    "issues": {
+      "short_descriptions": 4,
+      "missing_imports": 2
+    },
+    "avg_desc_length": 70.57142857142857,
+    "avg_code_length": 8105.428571428572
+  }
+}

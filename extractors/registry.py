@@ -80,7 +80,9 @@ class ExtractorRegistry:
                         attr is not BaseExtractor and
                         hasattr(attr, 'source_id') and 
                         attr.source_id):
-                        self.register(attr)
+                        # Only register if not already registered
+                        if attr.source_id not in self._extractors:
+                            self.register(attr)
                         
             except Exception as e:
                 logger.error(f"Failed to import {module_name}: {e}")

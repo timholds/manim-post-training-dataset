@@ -7,6 +7,7 @@ from pathlib import Path
 from datasets import load_dataset
 from ..base import BaseExtractor
 from ..registry import register_extractor
+from ..utils import fix_missing_imports
 
 logger = logging.getLogger(__name__)
 
@@ -71,11 +72,17 @@ class BespokeManimExtractor(BaseExtractor):
 
 @register_extractor
 class ThanhktManimExtractor(BaseExtractor):
-    """Extractor for thanhkt/manim_code dataset."""
+    """Extractor for thanhkt/manim_code dataset.
+    
+    WARNING: This dataset has severe quality issues:
+    - 47.3% of entries have mismatched code-description pairs
+    - Same code is used for completely unrelated descriptions
+    - Consider using ThanksCleanedExtractor instead
+    """
     
     source_id = "thanks_dataset"
     source_name = "ThanhKT Manim Code Dataset"
-    priority = 2  # Large dataset
+    priority = 1  # Lower priority - high duplicate rate, quality issues
     
     def _validate_config(self) -> None:
         """Validate configuration."""
@@ -110,6 +117,9 @@ class ThanhktManimExtractor(BaseExtractor):
                     # Remove literal \n from the beginning (common in this dataset)
                     if code.startswith('\\n'):
                         code = code[2:].lstrip()
+                    
+                    # Fix missing imports
+                    code = fix_missing_imports(code)
                     
                     yield {
                         "description": description,

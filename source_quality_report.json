@@ -1,0 +1,735 @@
+{
+  "bespoke_manim": {
+    "total_samples": 904,
+    "unique_descriptions": 904,
+    "duplicate_rate": 0.0,
+    "quality_issues": {
+      "syntax_errors": {
+        "count": 0,
+        "percentage": 0.0
+      },
+      "missing_imports": {
+        "count": 0,
+        "percentage": 0.0
+      },
+      "empty_constructs": {
+        "count": 0,
+        "percentage": 0.0
+      },
+      "placeholder_code": {
+        "count": 0,
+        "percentage": 0.0
+      },
+      "short_descriptions": {
+        "count": 0,
+        "percentage": 0.0
+      },
+      "short_code": {
+        "count": 0,
+        "percentage": 0.0
+      },
+      "no_animation_methods": {
+        "count": 0,
+        "percentage": 0.0
+      },
+      "no_math_objects": {
+        "count": 0,
+        "percentage": 0.0
+      }
+    },
+    "statistics": {
+      "avg_description_length": 116.34734513274336,
+      "avg_code_length": 4051.25,
+      "min_description_length": 63,
+      "max_description_length": 226,
+      "min_code_length": 1590,
+      "max_code_length": 10524
+    },
+    "examples": {
+      "errors": [],
+      "good": [
+        {
+          "description": "In what ways do the level curves of subharmonic functions differ from those of harmonic functions in",
+          "code": "from manim import *\n\nclass SubharmonicVsHarmonic(Scene):\n    def construct(self):\n        # Title\n        title = Text(\"Subharmonic vs. Harmonic: Level Curves Demystified\", font_size=28)\n        title"
+        },
+        {
+          "description": "How does the residue theorem illuminate the relationship between contour integrals over different co",
+          "code": "from manim import *\n\nclass ResidueTheoremScene(Scene):\n    def construct(self):\n        # Create and display the title\n        title = Text(\"Illuminating Contours with the Residue Theorem\")\n        se"
+        },
+        {
+          "description": "In what ways can Hawking radiation be visualized through Penrose diagrams, and how does it alter our",
+          "code": "from manim import *\n\nclass HawkingRadiationVisualization(Scene):\n    def construct(self):\n        # [0:00] Introduction\n        title = Text(\"Visualizing Hawking Radiation\")\n        subtitle = Text(\"A"
+        }
+      ]
+    },
+    "common_classes": [
+      [
+        "HopfFibrationScene",
+        3
+      ],
+      [
+        "QuantumTunnelingScene",
+        3
+      ],
+      [
+        "BoundaryCorrespondenceTheorem",
+        3
+      ],
+      [
+        "PigeonholePrinciple",
+        3
+      ],
+      [
+        "SpectralGraphTheory",
+        3
+      ],
+      [
+        "GraphCompressionScene",
+        3
+      ],
+      [
+        "ArnoldTongueAnimation",
+        3
+      ],
+      [
+        "RouchesTheorem",
+        3
+      ],
+      [
+        "SasakiMetricScene",
+        3
+      ],
+      [
+        "ContinuedFractionsScene",
+        3
+      ]
+    ],
+    "quality_score": 100.0
+  },
+  "kutuzova": {
+    "total_samples": 7,
+    "unique_descriptions": 7,
+    "duplicate_rate": 0.0,
+    "quality_issues": {
+      "syntax_errors": {
+        "count": 0,
+        "percentage": 0.0
+      },
+      "missing_imports": {
+        "count": 2,
+        "percentage": 28.57142857142857
+      },
+      "empty_constructs": {
+        "count": 0,
+        "percentage": 0.0
+      },
+      "placeholder_code": {
+        "count": 0,
+        "percentage": 0.0
+      },
+      "short_descriptions": {
+        "count": 0,
+        "percentage": 0.0
+      },
+      "short_code": {
+        "count": 0,
+        "percentage": 0.0
+      },
+      "no_animation_methods": {
+        "count": 0,
+        "percentage": 0.0
+      },
+      "no_math_objects": {
+        "count": 0,
+        "percentage": 0.0
+      }
+    },
+    "statistics": {
+      "avg_description_length": 70.57142857142857,
+      "avg_code_length": 8105.428571428572,
+      "min_description_length": 36,
+      "max_description_length": 223,
+      "min_code_length": 1090,
+      "max_code_length": 18228
+    },
+    "examples": {
+      "errors": [],
+      "good": [
+        {
+          "description": "Create a Manim animation for # Where do labels come from?",
+          "code": "from manim import *\n\nclass BacteriaGraph(Scene):\n    def construct(self):\n        # Define the bacteria strings\n        bacteria1 = 'd__Bacteria; p__Bacillota; c__Bacilli; o__Bacillales; f__Bacillacea"
+        },
+        {
+          "description": "Create a Manim animation for # Permutations",
+          "code": "from manim import *\nimport itertools\n\nclass Permutations(Scene):\n\n    def construct(self):\n        colors = [\"yellow\", \"blue\", \"red\", \"green\"]\n                \n        # Create present templates\n     "
+        },
+        {
+          "description": "Create a Manim animation for # Casino",
+          "code": "from manim import *\nimport numpy as np\n\ndef expected_log_winnings(c1, c2):\n    return 0.2 * np.log(c1 / 0.6) + 0.8 * np.log(c2 / 0.4)\n\n\nclass Casino(Scene):\n    def construct(self):\n        EQ_LOC = D"
+        }
+      ]
+    },
+    "common_classes": [
+      [
+        "Outro",
+        2
+      ],
+      [
+        "BacteriaGraph",
+        1
+      ],
+      [
+        "Permutations",
+        1
+      ],
+      [
+        "Casino",
+        1
+      ],
+      [
+        "Introduction",
+        1
+      ],
+      [
+        "Abundances",
+        1
+      ]
+    ],
+    "quality_score": 95.71428571428571
+  },
+  "manimbench": {
+    "total_samples": 368,
+    "unique_descriptions": 368,
+    "duplicate_rate": 0.0,
+    "quality_issues": {
+      "syntax_errors": {
+        "count": 0,
+        "percentage": 0.0
+      },
+      "missing_imports": {
+        "count": 0,
+        "percentage": 0.0
+      },
+      "empty_constructs": {
+        "count": 0,
+        "percentage": 0.0
+      },
+      "placeholder_code": {
+        "count": 0,
+        "percentage": 0.0
+      },
+      "short_descriptions": {
+        "count": 0,
+        "percentage": 0.0
+      },
+      "short_code": {
+        "count": 0,
+        "percentage": 0.0
+      },
+      "no_animation_methods": {
+        "count": 0,
+        "percentage": 0.0
+      },
+      "no_math_objects": {
+        "count": 33,
+        "percentage": 8.967391304347826
+      }
+    },
+    "statistics": {
+      "avg_description_length": 299.4130434782609,
+      "avg_code_length": 476.64402173913044,
+      "min_description_length": 43,
+      "max_description_length": 1113,
+      "min_code_length": 102,
+      "max_code_length": 2392
+    },
+    "examples": {
+      "errors": [],
+      "good": [
+        {
+          "description": "Display the word \u201cManim\u201d centered on the screen, with a straight underline drawn directly beneath it",
+          "code": "from manim import *\n\nclass UnderLine(Scene):\n    def construct(self):\n        man = Tex(\"Manim\")  # Full Word\n        ul = Underline(man)  # Underlining the word\n        self.add(man, ul)"
+        },
+        {
+          "description": "Display a red circle defined by three specific points: one to the left, one diagonally up-left, and ",
+          "code": "from manim import *\n\nclass CircleFromPointsExample(Scene):\n    def construct(self):\n        circle = Circle.from_three_points(LEFT, LEFT + UP, UP * 2, color=RED)\n        dots = VGroup(\n            Dot"
+        },
+        {
+          "description": "Display a 2x2 grid of four scenes, each containing a circle on the left and a label reading \"This is",
+          "code": "from manim import *\n\nclass SlidingMultipleScenes(MovingCameraScene):\n    def construct(self):\n        def create_scene(number):\n            frame = Rectangle(width=16,height=9)\n            circ = Circ"
+        }
+      ]
+    },
+    "common_classes": [
+      [
+        "GetAxisLabelsExample",
+        2
+      ],
+      [
+        "ApplyingWaves",
+        2
+      ],
+      [
+        "ValueTrackerExample",
+        2
+      ],
+      [
+        "BasicUsage",
+        2
+      ],
+      [
+        "TableExamples",
+        2
+      ],
+      [
+        "AnimateExample",
+        2
+      ],
+      [
+        "GetYAxisLabelExample",
+        2
+      ],
+      [
+        "IntersectionExample",
+        2
+      ],
+      [
+        "GetColumnsExample",
+        2
+      ],
+      [
+        "GetRowsExample",
+        2
+      ]
+    ],
+    "quality_score": 99.55163043478261
+  },
+  "reducible": {
+    "total_samples": 208,
+    "unique_descriptions": 208,
+    "duplicate_rate": 0.0,
+    "quality_issues": {
+      "syntax_errors": {
+        "count": 0,
+        "percentage": 0.0
+      },
+      "missing_imports": {
+        "count": 0,
+        "percentage": 0.0
+      },
+      "empty_constructs": {
+        "count": 0,
+        "percentage": 0.0
+      },
+      "placeholder_code": {
+        "count": 0,
+        "percentage": 0.0
+      },
+      "short_descriptions": {
+        "count": 0,
+        "percentage": 0.0
+      },
+      "short_code": {
+        "count": 0,
+        "percentage": 0.0
+      },
+      "no_animation_methods": {
+        "count": 1,
+        "percentage": 0.4807692307692308
+      },
+      "no_math_objects": {
+        "count": 11,
+        "percentage": 5.288461538461538
+      }
+    },
+    "statistics": {
+      "avg_description_length": 110.94711538461539,
+      "avg_code_length": 5528.995192307692,
+      "min_description_length": 93,
+      "max_description_length": 134,
+      "min_code_length": 129,
+      "max_code_length": 32297
+    },
+    "examples": {
+      "errors": [],
+      "good": [
+        {
+          "description": "Create a Manim animation for Graphintro that demonstrates Types Of Graphs (from Reducible's 2020 vid",
+          "code": "from manim import *\n\nclass TypesOfGraphs(Scene):\n\tdef construct(self):\n\t\tself.show_types_of_graphs()\n\n\tdef show_types_of_graphs(self):\n\t\ttitle = TextMobject(\"Types of Graphs\")\n\t\ttitle.scale(1.2)\n\t\ttit"
+        },
+        {
+          "description": "Create a Manim animation for Hanoi that demonstrates Generalized Hanoi Part1 (from Reducible's 2020 ",
+          "code": "from manim import *\n\nclass GeneralizedHanoiPart1(Scene):\n\tdef construct(self):\n\t\tn_objects, n_rods, hanoi_n_statement, print_move, scale = self.part_1()\n\n\tdef part_1(self):\n\t\tproblem_statement = TextM"
+        },
+        {
+          "description": "Create a Manim animation for Bigo that demonstrates Comparison (from Reducible's 2020 video series).",
+          "code": "from manim import *\n\nclass Comparison(GraphScene):\n\tCONFIG = {\n\t\"x_min\" : 0,\n\t\"x_max\" : 6,\n\t\"y_min\" : 0,\n\t\"y_max\" : 2100,\n\t\"x_axis_label\": None,\n\t\"y_axis_label\": None,\n\t\"graph_origin\" : LEFT * 2.4 + D"
+        }
+      ]
+    },
+    "common_classes": [
+      [
+        "Patreons",
+        7
+      ],
+      [
+        "Conclusion",
+        7
+      ],
+      [
+        "Transition",
+        5
+      ],
+      [
+        "Thumbnail",
+        4
+      ],
+      [
+        "GraphAnimationUtils",
+        3
+      ],
+      [
+        "Introduction",
+        3
+      ],
+      [
+        "Logo",
+        3
+      ],
+      [
+        "IntroduceBigO",
+        2
+      ],
+      [
+        "TypesOfGraphs",
+        1
+      ],
+      [
+        "GeneralizedHanoiPart1",
+        1
+      ]
+    ],
+    "quality_score": 99.71153846153845
+  },
+  "thanks_dataset": {
+    "total_samples": 1797,
+    "unique_descriptions": 1797,
+    "duplicate_rate": 0.0,
+    "quality_issues": {
+      "syntax_errors": {
+        "count": 0,
+        "percentage": 0.0
+      },
+      "missing_imports": {
+        "count": 227,
+        "percentage": 12.632164718976071
+      },
+      "empty_constructs": {
+        "count": 0,
+        "percentage": 0.0
+      },
+      "placeholder_code": {
+        "count": 7,
+        "percentage": 0.38953811908736785
+      },
+      "short_descriptions": {
+        "count": 53,
+        "percentage": 2.949360044518642
+      },
+      "short_code": {
+        "count": 0,
+        "percentage": 0.0
+      },
+      "no_animation_methods": {
+        "count": 0,
+        "percentage": 0.0
+      },
+      "no_math_objects": {
+        "count": 110,
+        "percentage": 6.121313299944352
+      }
+    },
+    "statistics": {
+      "avg_description_length": 614.0829159710629,
+      "avg_code_length": 1470.0634390651085,
+      "min_description_length": 6,
+      "max_description_length": 2268,
+      "min_code_length": 150,
+      "max_code_length": 26254
+    },
+    "examples": {
+      "errors": [],
+      "good": [
+        {
+          "description": "Can you create an animated video that shows a simple feedforward neural network with three layers, w",
+          "code": "from manim import *\n\nclass AreaUnderCurveExample(Scene):\n    def construct(self):\n        # Display the function\n        function_label = MathTex(r\"f(x) = x^2\", font_size=24).to_edge(UP)\n        self."
+        },
+        {
+          "description": "Can you create an educational animation visualizing a convolutional neural network processing an ima",
+          "code": "from manim import *\n\nclass DoubleIntegralPolarExample(Scene):\n    def construct(self):\n        # Displaying the problem\n        problem = MathTex(r\"\\int_{0}^{\\pi} \\int_{0}^{1} r^2 \\sin(\\theta) dr\\,d\\t"
+        },
+        {
+          "description": "I would like to create an animation where a text saying \"Look Here\" appears on the screen, then gets",
+          "code": "from manim import *\nfrom PIL import Image\nimport numpy as np\n\nclass NeuralNetworkScene(Scene):\n    def construct(self):\n        # Load an image to use as input\n        image_path = \"path/to/your/image"
+        }
+      ]
+    },
+    "common_classes": [
+      [
+        "Main",
+        161
+      ],
+      [
+        "AreaUnderCurveExample",
+        128
+      ],
+      [
+        "TripleIntegralExample",
+        81
+      ],
+      [
+        "BasicDefiniteIntegral",
+        74
+      ],
+      [
+        "AreaUnderCurve",
+        73
+      ],
+      [
+        "DoubleIntegralPolarExample",
+        63
+      ],
+      [
+        "WaveEquationExample",
+        52
+      ],
+      [
+        "FourierSeriesExample",
+        43
+      ],
+      [
+        "NeuralNetworkScene",
+        38
+      ],
+      [
+        "CombinedScene",
+        25
+      ]
+    ],
+    "quality_score": 97.59321090706733
+  },
+  "vivek3141": {
+    "total_samples": 320,
+    "unique_descriptions": 320,
+    "duplicate_rate": 0.0,
+    "quality_issues": {
+      "syntax_errors": {
+        "count": 0,
+        "percentage": 0.0
+      },
+      "missing_imports": {
+        "count": 0,
+        "percentage": 0.0
+      },
+      "empty_constructs": {
+        "count": 0,
+        "percentage": 0.0
+      },
+      "placeholder_code": {
+        "count": 0,
+        "percentage": 0.0
+      },
+      "short_descriptions": {
+        "count": 0,
+        "percentage": 0.0
+      },
+      "short_code": {
+        "count": 0,
+        "percentage": 0.0
+      },
+      "no_animation_methods": {
+        "count": 16,
+        "percentage": 5.0
+      },
+      "no_math_objects": {
+        "count": 27,
+        "percentage": 8.4375
+      }
+    },
+    "statistics": {
+      "avg_description_length": 87.678125,
+      "avg_code_length": 1542.31875,
+      "min_description_length": 68,
+      "max_description_length": 121,
+      "min_code_length": 106,
+      "max_code_length": 13347
+    },
+    "examples": {
+      "errors": [],
+      "good": [
+        {
+          "description": "Create a Manim animation demonstrating artificial intelligence concepts with graphical visualization",
+          "code": "from manimlib.imports import *\n\nclass Revolution(ThreeDScene):\n    def construct(self):\n        axes = ThreeDAxes()\n        f1 = FunctionGraph(lambda x: 1/x, x_min=0.1)\n        f2 = FunctionGraph(lamb"
+        },
+        {
+          "description": "Create a Manim animation demonstrating mathematical visualization involving integrals (Lebesgue Eq)",
+          "code": "from manimlib.imports import *\n\nclass LebesgueEq(Scene):\n    def construct(self):\n        title = TextMobject(\"Lebesgue Integral\", color=PURPLE)\n        title.scale(1.5)\n        title.shift(3 * UP)\n\n "
+        },
+        {
+          "description": "Create a Manim animation demonstrating mathematical visualization (Neuro Evolution)",
+          "code": "from manimlib.imports import *\n\nclass NeuroEvolution(Scene):\n    def construct(self):\n        n = 3\n        m = 1\n\n        shift = [\n            m * UP + n * LEFT,\n            m * UP,\n            m * "
+        }
+      ]
+    },
+    "common_classes": [
+      [
+        "AnimationScene",
+        16
+      ],
+      [
+        "Intro",
+        9
+      ],
+      [
+        "Example",
+        4
+      ],
+      [
+        "IntroQuote",
+        3
+      ],
+      [
+        "PartTwoTitle",
+        3
+      ],
+      [
+        "Thumbnail",
+        3
+      ],
+      [
+        "TitleScene",
+        3
+      ],
+      [
+        "NeuroEvolution",
+        2
+      ],
+      [
+        "Thumb",
+        2
+      ],
+      [
+        "PartOneTitle",
+        2
+      ]
+    ],
+    "quality_score": 99.328125
+  },
+  "vivek3141_dl": {
+    "total_samples": 16,
+    "unique_descriptions": 16,
+    "duplicate_rate": 0.0,
+    "quality_issues": {
+      "syntax_errors": {
+        "count": 0,
+        "percentage": 0.0
+      },
+      "missing_imports": {
+        "count": 0,
+        "percentage": 0.0
+      },
+      "empty_constructs": {
+        "count": 0,
+        "percentage": 0.0
+      },
+      "placeholder_code": {
+        "count": 0,
+        "percentage": 0.0
+      },
+      "short_descriptions": {
+        "count": 0,
+        "percentage": 0.0
+      },
+      "short_code": {
+        "count": 0,
+        "percentage": 0.0
+      },
+      "no_animation_methods": {
+        "count": 0,
+        "percentage": 0.0
+      },
+      "no_math_objects": {
+        "count": 1,
+        "percentage": 6.25
+      }
+    },
+    "statistics": {
+      "avg_description_length": 90.5625,
+      "avg_code_length": 14295.5,
+      "min_description_length": 65,
+      "max_description_length": 231,
+      "min_code_length": 599,
+      "max_code_length": 57625
+    },
+    "examples": {
+      "errors": [],
+      "good": [
+        {
+          "description": "Create a Manim animation explaining 212 concepts in deep learning",
+          "code": "from manimlib.imports import *\nimport numpy as np\nimport torch\nimport torch.nn as nn\nimport torch.nn.functional as F\nimport matplotlib.pyplot as plt\n\n\nclass Model(nn.Module):\n    def __init__(self, D_"
+        },
+        {
+          "description": "Create a Manim animation that visualizes attention mechanism and recurrent neural networks in deep l",
+          "code": "from manimlib import *\n\n\"\"\"\nScenes In Order:\n\nMachineTranslation\nAttention\n\"\"\"\n\nA_AQUA = \"#8dd3c7\"\nA_YELLOW = \"#ffffb3\"\nA_LAVENDER = \"#bebada\"\nA_RED = \"#fb8072\"\nA_BLUE = \"#80b1d3\"\nA_ORANGE = \"#fdb462\""
+        },
+        {
+          "description": "Create a Manim animation that visualizes neural network architecture and activation functions in dee",
+          "code": "from manimlib import *\n\nimport torch\nimport pickle\nimport gzip\n\ncolors = [RED, YELLOW, GREEN, BLUE, PURPLE]\n\nAQUA = \"#8dd3c7\"\nYELLOW = \"#ffffb3\"\nLAVENDER = \"#bebada\"\nRED = \"#fb8072\"\nBLUE = \"#80b1d3\"\nO"
+        }
+      ]
+    },
+    "common_classes": [
+      [
+        "Model",
+        6
+      ],
+      [
+        "RandomTransform",
+        5
+      ],
+      [
+        "FoldTransform",
+        5
+      ],
+      [
+        "Document",
+        3
+      ],
+      [
+        "WordDistribution",
+        3
+      ],
+      [
+        "TitleScene",
+        3
+      ],
+      [
+        "Thumb",
+        3
+      ],
+      [
+        "MNISTGroup",
+        2
+      ],
+      [
+        "RNNCell",
+        2
+      ],
+      [
+        "RNN",
+        2
+      ]
+    ],
+    "quality_score": 99.6875
+  }
+}
