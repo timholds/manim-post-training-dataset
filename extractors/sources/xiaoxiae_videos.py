@@ -32,7 +32,7 @@ class XiaoxiaeVideosExtractor(BaseExtractor):
     
     def estimate_sample_count(self) -> Optional[int]:
         """Return estimated number of samples."""
-        return 120  # Based on 25+ video projects with 3-8 scenes each
+        return 170  # Based on 26 video projects with all Scene types extracted
     
     def _clone_or_update_repo(self) -> bool:
         """Clone or update the repository."""
@@ -135,7 +135,9 @@ class XiaoxiaeVideosExtractor(BaseExtractor):
                         elif isinstance(base, ast.Attribute):
                             base_names.append(base.attr)
                     
-                    if 'Scene' in base_names:
+                    # Check if it inherits from Scene or any Scene subclass
+                    scene_classes = {'Scene', 'MovingCameraScene', 'ThreeDScene', 'GraphScene', 'ZoomedScene'}
+                    if any(base_name in scene_classes for base_name in base_names):
                         # Extract class code
                         class_start = node.lineno - 1
                         class_end = node.end_lineno if node.end_lineno else len(content.split('\n'))

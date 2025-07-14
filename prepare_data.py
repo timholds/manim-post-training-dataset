@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
 from collections import defaultdict
 from datetime import datetime
+from tqdm import tqdm
 
 from extractors import get_registry
 from extractors.utils import create_conversation, normalize_description, augment_prompt, normalize_code, calculate_similarity
@@ -163,13 +164,13 @@ def deduplicate_data(all_data: List[Dict[str, Any]], source_priorities: Dict[str
             stats['kept_by_source'][norm_item['item']['source']] += 1
     
     # Log summary
-    logger.info(f"\nDeduplication Summary:")
-    logger.info(f"  Original samples: {stats['total_raw']:,}")
-    logger.info(f"  Unique samples: {len(deduplicated):,}")
-    logger.info(f"  Duplicates removed: {stats['duplicates_removed']:,}")
-    logger.info(f"    - Exact code matches: {stats['exact_code_duplicates']:,}")
-    logger.info(f"    - High similarity (>95% both): {stats['high_similarity_duplicates']:,}")
-    logger.info(f"  Reduction: {stats['duplicates_removed']/stats['total_raw']*100:.1f}%")
+    logger.info(f"\nDeduplication results:")
+    logger.info(f"    Original samples: {stats['total_raw']:,}")
+    logger.info(f"    Unique samples: {len(deduplicated):,}")
+    logger.info(f"    Duplicates removed: {stats['duplicates_removed']:,}")
+    logger.info(f"        • Exact code matches: {stats['exact_code_duplicates']:,}")
+    logger.info(f"        • High similarity (>95% both): {stats['high_similarity_duplicates']:,}")
+    logger.info(f"    Reduction: {stats['duplicates_removed']/stats['total_raw']*100:.1f}%")
     
     return deduplicated, stats
 
@@ -200,6 +201,7 @@ def prepare_datasets(
     rendering_timeout: int = 30,
     rendering_fix_issues: bool = True,
     rendering_dry_run: bool = True,  # Default to True for dry-run
+    rendering_fast_mode: bool = False,  # Fast mode for rendering validation
     save_videos_dir: Optional[str] = None,
     llm_fill_descriptions: bool = False,
     llm_config: Optional[Dict] = None
@@ -229,7 +231,7 @@ def prepare_datasets(
     # Get already initialized registry (auto_discover was called in main)
     registry = get_registry()
     
-    logger.info(f"Discovered extractors: {registry.list_sources()}")
+    logger.info(f"Discovered {len(registry.list_sources())} extractors: {', '.join(registry.list_sources())}")
     
     # Select sources to process
     if sources:
@@ -246,8 +248,9 @@ def prepare_datasets(
     source_priorities = {}
     source_visualization_data = {}  # For visualization
     
+    logger.info(f"📥 Extracting from {len(sources_to_process)} sources...")
+    
     for source_id in sources_to_process:
-        logger.info(f"\nProcessing source: {source_id}")
         
         try:
             # Get extractor config - pass the FULL quality config
@@ -286,7 +289,7 @@ def prepare_datasets(
                 "name": extractor.source_name
             }
             
-            logger.info(f"  Extracted {len(samples)} samples")
+            logger.info(f"  {source_id}: {len(samples):,} samples")
             
         except Exception as e:
             logger.error(f"Failed to process {source_id}: {e}")
@@ -296,22 +299,21 @@ def prepare_datasets(
         logger.error("No data processed from any source!")
         return
     
-    logger.info(f"\nTotal samples collected: {len(all_data)}")
+    logger.info(f"Total: {len(all_data):,} samples collected")
     
-    # Generate data sources visualization
-    logger.info("\nGenerating data sources visualization...")
+    # Generate data sources visualization  
     try:
         viz_path = "data_sources.png"
         analyze_code_lengths(source_visualization_data, viz_path, show_plot=False)
-        logger.info(f"Data sources visualization saved to: {viz_path}")
+        logger.info(f"📊 Visualization saved: {viz_path}")
     except Exception as e:
         logger.warning(f"Failed to generate visualization: {e}")
     
     # Apply deduplication if requested
     dedup_stats = None
     if deduplicate:
+        logger.info(f"\n🔍 Deduplicating...")
         all_data, dedup_stats = deduplicate_data(all_data, source_priorities)
-        logger.info(f"After deduplication: {len(all_data)} samples")
     
     # Fill placeholder descriptions with LLM if requested
     if llm_fill_descriptions:
@@ -320,23 +322,24 @@ def prepare_datasets(
     # Apply rendering validation if requested
     rendering_stats = None
     if enable_rendering_validation:
-        logger.info("\n" + "="*60)
-        logger.info("Starting rendering validation...")
-        logger.info("="*60)
+        logger.info(f"\n🎬 Validating {len(all_data):,} samples can render...")
         
         # Initialize validators
         render_validator = RenderingValidator(
             timeout=rendering_timeout,
             fix_common_issues=rendering_fix_issues,
             dry_run=rendering_dry_run,
-            save_videos_dir=save_videos_dir
+            save_videos_dir=save_videos_dir,
+            fast_mode=rendering_fast_mode
         )
         batch_validator = BatchRenderValidator(render_validator, dry_run=rendering_dry_run)
         
-        # Progress callback
+        # Use tqdm for progress tracking
+        pbar = tqdm(total=len(all_data), desc="Rendering", unit="samples", ncols=80)
+        
         def progress_callback(current, total):
-            if current % 10 == 0:
-                logger.info(f"  Progress: {current}/{total} ({current/total*100:.1f}%)")
+            pbar.n = current
+            pbar.refresh()
         
         # Validate all samples
         valid_samples, invalid_samples = batch_validator.validate_dataset(
@@ -344,10 +347,10 @@ def prepare_datasets(
             progress_callback=progress_callback
         )
         
+        pbar.close()
+        
         # Update data to only include valid samples
-        logger.info(f"\nRendering validation complete:")
-        logger.info(f"  Valid samples: {len(valid_samples)} ({len(valid_samples)/len(all_data)*100:.1f}%)")
-        logger.info(f"  Invalid samples: {len(invalid_samples)} ({len(invalid_samples)/len(all_data)*100:.1f}%)")
+        logger.info(f"Valid: {len(valid_samples):,} ({len(valid_samples)/len(all_data)*100:.0f}%), Invalid: {len(invalid_samples):,}")
         
         # Save rendering validation report
         rendering_report = {
@@ -369,9 +372,13 @@ def prepare_datasets(
         rendering_stats = rendering_report
     
     # Split into train/test
+    logger.info(f"\n✂️ Splitting: ", end="")
     train_data, test_data = split_dataset(all_data, test_ratio=test_ratio, seed=seed)
+    logger.info(f"{len(train_data):,} train, {len(test_data):,} test")
     
     # Apply augmentation to training data
+    logger.info(f"🔄 Formatting conversations...")
+    
     augmented_train = []
     for item in train_data:
         # Always include original
@@ -405,7 +412,12 @@ def prepare_datasets(
             conv["rendering_validated"] = True
         augmented_test.append(conv)
     
+    if use_augmentation:
+        logger.info(f"Augmented: {len(train_data):,} → {len(augmented_train):,} train samples ({len(augmented_train)/len(train_data):.1f}x)")
+    
     # Save datasets
+    logger.info(f"💾 Saving datasets...")
+    
     train_file = output_path / "train.json"
     test_file = output_path / "test.json"
     stats_file = output_path / "dataset_stats.json"
@@ -482,25 +494,31 @@ def prepare_datasets(
             json.dump(dedup_stats['examples_removed'], f, indent=2)
     
     # Log summary
-    logger.info("\n" + "="*60)
-    logger.info("DATASET PREPARATION COMPLETE")
-    logger.info("="*60)
+    logger.info(f"\n✅ Complete! Final dataset:")
+    
+    # Pipeline summary
+    pipeline_summary = []
     if dedup_stats:
-        logger.info(f"Original samples: {dedup_stats['total_raw']:,}")
-        logger.info(f"After deduplication: {len(all_data) if not rendering_stats else rendering_stats['total_samples']:,}")
-    if rendering_stats:
-        logger.info(f"After rendering validation: {rendering_stats['valid_samples']:,}")
-    logger.info(f"Train samples: {len(augmented_train)} ({len(augmented_train)/len(train_data):.1f}x augmentation)")
-    logger.info(f"Test samples: {len(augmented_test)}")
-    logger.info(f"\nDataset statistics saved to: {stats_file}")
-    if dedup_stats:
-        logger.info(f"Deduplication report saved to: {output_path / 'deduplication_report.json'}")
-        logger.info(f"Removed examples saved to: {output_path / 'removed_duplicates.json'}")
-    if rendering_stats:
-        logger.info(f"Rendering validation report saved to: {output_path / 'rendering_validation_report.json'}")
-    logger.info("\nSource distribution:")
-    for source, count in final_stats["source_distribution"].items():
-        logger.info(f"  {source}: {count} samples")
+        pipeline_summary.append(f"{dedup_stats['total_raw']:,}")
+        if rendering_stats:
+            pipeline_summary.append(f"{rendering_stats['valid_samples']:,}")
+        else:
+            pipeline_summary.append(f"{len(all_data):,}")
+    else:
+        pipeline_summary.append(f"{len(all_data):,}")
+        
+    pipeline_summary.append(f"train:{len(augmented_train):,}")
+    pipeline_summary.append(f"test:{len(augmented_test):,}")
+    
+    logger.info(f"  {' → '.join(pipeline_summary)}")
+    logger.info(f"  📁 {output_path}")
+    
+    # Show top sources only
+    top_sources = sorted(final_stats["source_distribution"].items(), key=lambda x: x[1], reverse=True)[:5]
+    source_summary = ", ".join([f"{src}:{count:,}" for src, count in top_sources])
+    if len(final_stats["source_distribution"]) > 5:
+        source_summary += f" (+{len(final_stats['source_distribution'])-5} more)"
+    logger.info(f"  📋 {source_summary}")
 
 
 def main():
@@ -523,8 +541,8 @@ def main():
     parser.add_argument("--enable-rendering", action="store_true", help="Enable rendering validation")
     parser.add_argument("--rendering-timeout", type=int, default=30, help="Timeout for each render attempt (seconds)")
     parser.add_argument("--no-rendering-fixes", action="store_true", help="Disable automatic fixes during rendering")
-    parser.add_argument("--rendering-full", action="store_true", help="Enable full video rendering (default is dry-run syntax validation only)")
-    parser.add_argument("--save-videos", type=str, help="Directory to save rendered videos (only works with --rendering-full)")
+    parser.add_argument("--rendering-full", type=str, nargs='?', const="rendered_videos", help="Enable full video rendering and save videos to directory (default: rendered_videos)")
+    parser.add_argument("--rendering-fast", action="store_true", help="Use fast mode: render only last frame as PNG instead of full video")
     
     # LLM description options
     parser.add_argument("--fill-descriptions", action="store_true", help="Fill placeholder descriptions with LLM")
@@ -564,8 +582,9 @@ def main():
         enable_rendering_validation=args.enable_rendering,
         rendering_timeout=args.rendering_timeout,
         rendering_fix_issues=not args.no_rendering_fixes,
-        rendering_dry_run=not args.rendering_full,  # Invert the flag
-        save_videos_dir=args.save_videos,
+        rendering_dry_run=not bool(args.rendering_full),  # Invert the flag
+        rendering_fast_mode=args.rendering_fast,
+        save_videos_dir=args.rendering_full if args.rendering_full else None,
         llm_fill_descriptions=args.fill_descriptions,
         llm_config=llm_config
     )

@@ -403,7 +403,23 @@ class QualityValidator:
         math_objects = [
             "Text", "Tex", "MathTex", "Circle", "Square", "Line",
             "Arrow", "Dot", "Graph", "Axes", "Vector", "Matrix",
-            "Polygon", "Arc", "Angle", "BraceBetweenPoints"
+            "Polygon", "Arc", "Angle", "BraceBetweenPoints",
+            # Geometric objects
+            "Triangle", "Rectangle", "Ellipse", "Sector", "Annulus",
+            "RegularPolygon", "RoundedRectangle", "Cutout",
+            # Coordinate systems and grids
+            "NumberPlane", "ComplexPlane", "PolarPlane", "CoordinateSystem",
+            "Axes", "ThreeDAxes", "NumberLine",
+            # 3D objects
+            "Cube", "Sphere", "Cylinder", "Cone", "Prism", "Pyramid",
+            "Polyhedron", "Dodecahedron", "Icosahedron", "Octahedron",
+            # Specialized mathematical objects
+            "YoungTableau", "ParametricFunction", "ImplicitFunction",
+            "VectorField", "StreamLines", "FunctionGraph",
+            # Graphs and trees
+            "Graph", "DiGraph", "Tree", "GenericGraph",
+            # Tables and arrays
+            "Table", "MobjectTable", "DecimalTable", "IntegerTable"
         ]
         
         has_math_objects = any(obj in code for obj in math_objects)

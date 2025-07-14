@@ -18,9 +18,9 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 logger = logging.getLogger(__name__)
 
 
-def _worker_validate_sample(idx: int, sample: Dict[str, Any], timeout: int, quality: str, fix_common_issues: bool, dry_run: bool = False, save_videos_dir: Optional[str] = None) -> Tuple[bool, Dict]:
+def _worker_validate_sample(idx: int, sample: Dict[str, Any], timeout: int, quality: str, fix_common_issues: bool, dry_run: bool = False, save_videos_dir: Optional[str] = None, fast_mode: bool = False) -> Tuple[bool, Dict]:
     """Worker function for parallel validation."""
-    validator = RenderingValidator(timeout=timeout, quality=quality, cleanup=True, fix_common_issues=fix_common_issues, dry_run=dry_run, save_videos_dir=save_videos_dir)
+    validator = RenderingValidator(timeout=timeout, quality=quality, cleanup=True, fix_common_issues=fix_common_issues, dry_run=dry_run, save_videos_dir=save_videos_dir, fast_mode=fast_mode)
     code = sample.get("code", "")
     sample_id = f"{sample.get('source', 'unknown')}_{idx}"
     return validator.validate_render(code, sample_id)
@@ -35,7 +35,8 @@ class RenderingValidator:
                  cleanup: bool = True,
                  fix_common_issues: bool = True,
                  dry_run: bool = False,
-                 save_videos_dir: Optional[str] = None):
+                 save_videos_dir: Optional[str] = None,
+                 fast_mode: bool = False):
         """
         Initialize rendering validator.
         
@@ -46,6 +47,7 @@ class RenderingValidator:
             fix_common_issues: Whether to attempt auto-fixes
             dry_run: If True, only validate syntax without rendering
             save_videos_dir: Directory to save rendered videos (None to not save)
+            fast_mode: If True, only render last frame as PNG instead of full video
         """
         self.timeout = timeout
         self.quality = quality
@@ -53,6 +55,7 @@ class RenderingValidator:
         self.fix_common_issues = fix_common_issues
         self.dry_run = dry_run
         self.save_videos_dir = save_videos_dir
+        self.fast_mode = fast_mode
         
         # Create save directory if specified
         if self.save_videos_dir:
@@ -133,9 +136,14 @@ class RenderingValidator:
             cmd = [
                 "manim", "-ql",  # Quick low quality
                 "--disable_caching",
-                "--media_dir", str(output_dir),
-                str(script_path)
+                "--media_dir", str(output_dir)
             ]
+            
+            # Add fast mode flag if enabled
+            if self.fast_mode:
+                cmd.append("--save_last_frame")
+            
+            cmd.append(str(script_path))
             
             # Extract scene name if possible
             scene_name = self._extract_scene_name(code)
@@ -157,27 +165,34 @@ class RenderingValidator:
                 render_time = time.time() - start_time
                 
                 if result.returncode == 0:
-                    # Check if video was actually created
-                    video_files = list(output_dir.rglob("*.mp4"))
-                    if video_files:
-                        video_size = video_files[0].stat().st_size
-                        temp_video_path = str(video_files[0])
+                    # Check if output was actually created
+                    if self.fast_mode:
+                        # In fast mode, look for PNG files
+                        output_files = list(output_dir.rglob("*.png"))
+                    else:
+                        # In normal mode, look for video files
+                        output_files = list(output_dir.rglob("*.mp4"))
+                    
+                    if output_files:
+                        file_size = output_files[0].stat().st_size
+                        temp_output_path = str(output_files[0])
                         
-                        # Save video if directory specified
-                        saved_video_path = None
-                        if self.save_videos_dir:
-                            saved_video_path = self._save_video(video_files[0], sample_id)
+                        # Save output if directory specified and not in fast mode
+                        saved_output_path = None
+                        if self.save_videos_dir and not self.fast_mode:
+                            saved_output_path = self._save_video(output_files[0], sample_id)
                         
                         return True, {
                             "render_time": render_time,
-                            "video_size": video_size,
-                            "video_path": temp_video_path,
-                            "saved_video_path": saved_video_path,
+                            "file_size": file_size,
+                            "output_path": temp_output_path,
+                            "saved_path": saved_output_path,
+                            "fast_mode": self.fast_mode,
                             "stdout": result.stdout[-500:] if result.stdout else ""
                         }
                     else:
                         return False, {
-                            "error": "No video file generated",
+                            "error": f"No {'PNG' if self.fast_mode else 'video'} file generated",
                             "stdout": result.stdout,
                             "stderr": result.stderr
                         }
@@ -421,7 +436,8 @@ class BatchRenderValidator:
                         quality=self.validator.quality,
                         fix_common_issues=self.validator.fix_common_issues,
                         dry_run=self.dry_run,
-                        save_videos_dir=self.validator.save_videos_dir)
+                        save_videos_dir=self.validator.save_videos_dir,
+                        fast_mode=self.validator.fast_mode)
         
         # Process samples in parallel
         with ProcessPoolExecutor(max_workers=self.max_workers) as executor:
