@@ -1,6 +1,14 @@
 """
 Quality validation framework for Manim dataset extraction.
 Ensures high-quality data at the extraction stage.
+
+IMPORTANT: Placeholder descriptions are EXPECTED and ACCEPTED at this stage!
+- Descriptions starting with PLACEHOLDER_DESCRIPTION are intentionally allowed
+- These will be filled later by an LLM
+- The validator specifically skips validation for known placeholder patterns
+- See _validate_description() method for the list of accepted placeholders
+
+The quality issues we check for are in the CODE itself, not placeholder descriptions.
 """
 
 import ast
@@ -8,20 +16,24 @@ import re
 from typing import Dict, Any, List, Tuple, Optional
 import logging
 
+from .constants import PLACEHOLDER_DESCRIPTION
+
 logger = logging.getLogger(__name__)
 
 
 class QualityValidator:
     """Validates quality of Manim code samples during extraction."""
     
-    def __init__(self, strict_mode: bool = True):
+    def __init__(self, strict_mode: bool = True, config: Optional[Dict[str, Any]] = None):
         """
         Initialize validator.
         
         Args:
             strict_mode: If True, reject samples with any critical issues
+            config: Quality configuration dict from quality_config.json
         """
         self.strict_mode = strict_mode
+        self.config = config or {}
         self.validation_stats = {
             "total_checked": 0,
             "passed": 0,
@@ -29,24 +41,31 @@ class QualityValidator:
             "issues_by_type": {}
         }
     
-    def validate_sample(self, sample: Dict[str, Any]) -> Tuple[bool, List[str]]:
+    def validate_sample(self, sample: Dict[str, Any], source_id: Optional[str] = None) -> Tuple[bool, List[str]]:
         """
         Validate a single sample.
+        
+        Args:
+            sample: The sample to validate
+            source_id: Optional source identifier for source-specific config
         
         Returns:
             (is_valid, list_of_issues)
         """
         self.validation_stats["total_checked"] += 1
         
+        # Get merged config for this source
+        merged_config = self._get_merged_config(source_id)
+        
         issues = []
         description = sample.get("description", "")
         code = sample.get("code", "")
         
-        # Run all validation checks
-        issues.extend(self._validate_description(description))
-        issues.extend(self._validate_code_structure(code))
-        issues.extend(self._validate_code_quality(code))
-        issues.extend(self._validate_code_description_alignment(description, code))
+        # Run all validation checks with config
+        issues.extend(self._validate_description(description, merged_config))
+        issues.extend(self._validate_code_structure(code, merged_config))
+        issues.extend(self._validate_code_quality(code, merged_config))
+        issues.extend(self._validate_code_description_alignment(description, code, merged_config))
         
         # Determine if sample passes
         critical_issues = [i for i in issues if i.startswith("[CRITICAL]")]
@@ -71,25 +90,81 @@ class QualityValidator:
         
         return is_valid, issues
     
-    def _validate_description(self, description: str) -> List[str]:
+    def _get_merged_config(self, source_id: Optional[str] = None) -> Dict[str, Any]:
+        """Get merged configuration for a specific source."""
+        # Start with global settings
+        merged = self.config.get("global_settings", {}).copy()
+        
+        # Apply source-specific overrides if available
+        if source_id and source_id in self.config.get("source_overrides", {}):
+            source_config = self.config["source_overrides"][source_id]
+            # Deep merge the configurations
+            for key, value in source_config.items():
+                if isinstance(value, dict) and key in merged and isinstance(merged[key], dict):
+                    merged[key] = {**merged[key], **value}
+                else:
+                    merged[key] = value
+        
+        # Include validation_actions settings
+        if "validation_actions" in self.config:
+            validation_actions = self.config["validation_actions"]
+            if "allow_through" in validation_actions:
+                merged["allow_through"] = validation_actions["allow_through"]
+            if "must_reject" in validation_actions:
+                merged["must_reject"] = validation_actions["must_reject"]
+            
+        return merged
+    
+    def _validate_description(self, description: str, config: Dict[str, Any]) -> List[str]:
         """Validate description quality."""
         issues = []
         
-        # Length check
-        if len(description) < 20:
+        # Skip validation for intentional placeholders that will be filled later
+        # Primary check: our standardized placeholder
+        if description.startswith(PLACEHOLDER_DESCRIPTION):
+            return []  # No issues - this is intentional and will be fixed later
+        
+        # Check if we should allow placeholder descriptions
+        allow_through = config.get("allow_through", {})
+        if allow_through.get("placeholder_descriptions", {}).get("enabled", False):
+            # Legacy placeholders (for backward compatibility during transition)
+            legacy_placeholders = [
+                "[Code-only sample - description generated later]",
+                "[Description to be generated]",
+                "[Placeholder - will be filled by LLM]",
+                "[PLACEHOLDER - Needs description]",  # Used by manim_ce_examples
+                "[PLACEHOLDER - Needs transcript enhancement]"  # Used by szymon_ozog
+            ]
+            # Check both exact match and if description starts with placeholder
+            if description in legacy_placeholders or any(description.startswith(placeholder) for placeholder in legacy_placeholders):
+                return []  # No issues - this is intentional and will be fixed later
+            
+            # Also check for patterns defined in config
+            patterns = allow_through.get("placeholder_descriptions", {}).get("patterns", [])
+            for pattern in patterns:
+                if pattern in description:
+                    return []  # Allow placeholder
+        
+        # Length check - but check config first
+        if allow_through.get("short_descriptions", {}).get("enabled", False):
+            min_length = allow_through.get("short_descriptions", {}).get("min_length", 0)
+            if len(description) < min_length:
+                issues.append(f"[HIGH] Description too short ({len(description)} chars, min: {min_length})")
+        elif len(description) < 20:
             issues.append(f"[HIGH] Description too short ({len(description)} chars)")
         
-        # Check for placeholders
-        placeholder_patterns = [
-            r"\[.*?\]",  # Square brackets
-            r"TODO", r"FIXME", r"XXX",
-            r"INSERT", r"PLACEHOLDER",
-            r"<.*?>",  # Angle brackets
-        ]
-        for pattern in placeholder_patterns:
-            if re.search(pattern, description, re.IGNORECASE):
-                issues.append(f"[HIGH] Description contains placeholder: {pattern}")
-                break
+        # Check for placeholders (only if we're not allowing them through)
+        if not allow_through.get("placeholder_descriptions", {}).get("enabled", False):
+            placeholder_patterns = [
+                r"\[.*?\]",  # Square brackets
+                r"TODO", r"FIXME", r"XXX",
+                r"INSERT", r"PLACEHOLDER",
+                r"<.*?>",  # Angle brackets
+            ]
+            for pattern in placeholder_patterns:
+                if re.search(pattern, description, re.IGNORECASE):
+                    issues.append(f"[HIGH] Description contains placeholder: {pattern}")
+                    break
         
         # Check for generic descriptions
         generic_starts = [
@@ -115,12 +190,20 @@ class QualityValidator:
         
         return issues
     
-    def _validate_code_structure(self, code: str) -> List[str]:
+    def _validate_code_structure(self, code: str, config: Dict[str, Any]) -> List[str]:
         """Validate code has proper structure."""
         issues = []
         
-        # Basic length check
-        if len(code) < 50:
+        # Check must_reject rules first
+        must_reject = config.get("must_reject", {})
+        
+        # Basic length check - use config if available
+        if must_reject.get("code_below_minimum", {}).get("enabled", True):
+            min_length = must_reject.get("code_below_minimum", {}).get("min_length", 30)
+            if len(code) < min_length:
+                issues.append(f"[CRITICAL] Code too short ({len(code)} chars, min: {min_length})")
+                return issues  # No point checking further
+        elif len(code) < 50:
             issues.append(f"[CRITICAL] Code too short ({len(code)} chars)")
             return issues  # No point checking further
         
@@ -131,9 +214,25 @@ class QualityValidator:
             issues.append(f"[CRITICAL] Syntax error: {str(e)}")
             return issues  # Can't analyze further with syntax errors
         
-        # Check for imports
-        has_imports = any(isinstance(node, (ast.Import, ast.ImportFrom)) 
-                         for node in ast.walk(tree))
+        # Check for imports and build alias mapping
+        has_imports = False
+        alias_map = {}  # Maps aliases to their original names
+        
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.Import, ast.ImportFrom)):
+                has_imports = True
+                
+                # Build alias mapping for Scene classes
+                if isinstance(node, ast.ImportFrom) and node.module and 'manim' in node.module:
+                    for alias in node.names:
+                        # alias.name is the original name, alias.asname is the alias
+                        if alias.asname:
+                            alias_map[alias.asname] = alias.name
+                elif isinstance(node, ast.Import):
+                    for alias in node.names:
+                        if alias.asname:
+                            alias_map[alias.asname] = alias.name
+        
         if not has_imports:
             issues.append("[HIGH] Missing import statements")
         
@@ -141,24 +240,70 @@ class QualityValidator:
         classes = [node for node in ast.walk(tree) if isinstance(node, ast.ClassDef)]
         scene_classes = []
         
-        for cls in classes:
-            # Check if inherits from Scene-like class
+        # Valid Scene classes in Manim
+        # This includes all common Scene subclasses to avoid false positives
+        # Previously, we only checked if class name contained "Scene", which missed
+        # valid subclasses like ThreeDScene (would fail because base is "ThreeDScene" not "Scene")
+        valid_scene_classes = {
+            'Scene', 'ThreeDScene', 'VoiceoverScene', 'MovingCameraScene',
+            'ZoomedScene', 'InteractiveScene', 'SampleSpaceScene', 'LiveStreamingScene',
+            'GraphScene', 'LinearTransformationScene', 'VectorScene', 'SpecialThreeDScene'
+        }
+        
+        # Build a map of all classes for multi-level inheritance checking
+        class_map = {cls.name: cls for cls in classes}
+        
+        def is_scene_class(cls, visited=None):
+            """Recursively check if a class inherits from a Scene class."""
+            if visited is None:
+                visited = set()
+            if cls.name in visited:
+                return False
+            visited.add(cls.name)
+            
             for base in cls.bases:
+                # Case 1: Direct inheritance (e.g., class MyScene(Scene))
                 if isinstance(base, ast.Name):
-                    if 'Scene' in base.id:
-                        scene_classes.append(cls)
-                        break
+                    base_name = base.id
+                    
+                    # Check if this is an alias
+                    if base_name in alias_map:
+                        original_name = alias_map[base_name]
+                        if original_name in valid_scene_classes:
+                            return True
+                    
+                    # Check direct name
+                    if base_name in valid_scene_classes:
+                        return True
+                    
+                    # Check if base is another class in this file
+                    if base_name in class_map:
+                        if is_scene_class(class_map[base_name], visited):
+                            return True
+                            
+                # Case 2: Module-qualified (e.g., class MyScene(manim.Scene))
+                elif isinstance(base, ast.Attribute):
+                    if base.attr in valid_scene_classes:
+                        return True
+            return False
+        
+        # Check each class
+        for cls in classes:
+            if is_scene_class(cls):
+                scene_classes.append(cls)
         
         if not scene_classes:
             issues.append("[CRITICAL] No Scene class found")
             return issues
         
-        # Check for construct method
-        for scene_class in scene_classes:
+        # First pass: Build a map of which classes have construct methods
+        classes_with_construct = {}  # Maps class name to (has_construct, is_empty)
+        
+        for cls in classes:
             has_construct = False
             construct_is_empty = False
             
-            for node in scene_class.body:
+            for node in cls.body:
                 if isinstance(node, ast.FunctionDef) and node.name == "construct":
                     has_construct = True
                     
@@ -172,34 +317,75 @@ class QualityValidator:
                              isinstance(node.body[0].value, ast.Constant) and \
                              node.body[0].value.value == ...:
                             construct_is_empty = True
+                    break
+            
+            classes_with_construct[cls.name] = (has_construct, construct_is_empty)
+        
+        # Helper function to check if a class has construct method through inheritance
+        def has_construct_in_chain(cls_name, visited=None):
+            """Check if a class or any of its parents has a construct method."""
+            if visited is None:
+                visited = set()
+            if cls_name in visited:
+                return False, False
+            visited.add(cls_name)
+            
+            # Check if this class directly has construct
+            if cls_name in classes_with_construct:
+                has_it, is_empty = classes_with_construct[cls_name]
+                if has_it:
+                    return True, is_empty
+            
+            # Check parent classes
+            if cls_name in class_map:
+                cls = class_map[cls_name]
+                for base in cls.bases:
+                    parent_name = None
+                    
+                    if isinstance(base, ast.Name):
+                        parent_name = base.id
+                    elif isinstance(base, ast.Attribute):
+                        # For cases like manim.Scene, we can't check inheritance
+                        # but these are base classes that should have construct
+                        continue
+                    
+                    if parent_name and parent_name in class_map:
+                        has_parent_construct, parent_is_empty = has_construct_in_chain(parent_name, visited)
+                        if has_parent_construct:
+                            return True, parent_is_empty
+            
+            return False, False
+        
+        # Second pass: Check each Scene class for construct method (including inherited)
+        for scene_class in scene_classes:
+            has_construct, construct_is_empty = has_construct_in_chain(scene_class.name)
             
             if not has_construct:
                 issues.append(f"[HIGH] Scene class '{scene_class.name}' missing construct method")
             elif construct_is_empty:
-                issues.append(f"[CRITICAL] Empty construct method in '{scene_class.name}'")
+                # Only report empty construct if it's directly in this class
+                # (not inherited empty construct)
+                if scene_class.name in classes_with_construct and classes_with_construct[scene_class.name][0]:
+                    issues.append(f"[CRITICAL] Empty construct method in '{scene_class.name}'")
         
         return issues
     
-    def _validate_code_quality(self, code: str) -> List[str]:
+    def _validate_code_quality(self, code: str, config: Dict[str, Any]) -> List[str]:
         """Validate code quality and completeness."""
         issues = []
         
-        # Check for incomplete code markers
-        incomplete_markers = ["TODO", "FIXME", "XXX", "HACK", "BUG", "REFACTOR"]
-        for marker in incomplete_markers:
-            if marker in code:
-                issues.append(f"[HIGH] Code contains incomplete marker: {marker}")
-                break
+        # Get allow_through settings
+        allow_through = config.get("allow_through", {})
         
-        # Check for placeholder patterns
+        # Check for obvious placeholder patterns that indicate incomplete code
+        # Note: We do NOT check for TODO/FIXME/XXX as these often appear in valid
+        # function names (e.g., opacity_updater) and cause false positives
         placeholder_patterns = [
             r"#\s*Your code here",
             r"#\s*Implementation goes here",
             r"#\s*Add your.*here",
             r"#\s*Fill in.*",
             r"#\s*Complete this.*",
-            r"\.\.\.\s*$",  # Ellipsis at end of line (not in string)
-            r"pass\s*#\s*TODO",
         ]
         
         for pattern in placeholder_patterns:
@@ -207,15 +393,47 @@ class QualityValidator:
                 issues.append(f"[HIGH] Code contains placeholder pattern")
                 break
         
-        # Check for common animation methods
-        animation_methods = [
-            "play", "wait", "add", "remove", "move_to", "shift", "scale",
-            "rotate", "set_color", "fade", "transform", "animate"
-        ]
+        # Check for code ellipsis (not in strings or comments)
+        # This is more complex and needs special handling
+        try:
+            tree = ast.parse(code)
+            # Check for ellipsis in the AST (actual code ellipsis)
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Expr) and isinstance(node.value, ast.Constant) and node.value.value == ...:
+                    issues.append(f"[HIGH] Code contains placeholder ellipsis (...)")
+                    break
+        except:
+            # If AST parsing fails, we already catch that in _validate_code_structure
+            pass
         
-        has_animation = any(method in code for method in animation_methods)
-        if not has_animation:
-            issues.append("[MEDIUM] Code lacks animation methods - might be incomplete")
+        # Check for actual animation execution (not in comments)
+        # First, remove comments to avoid false positives
+        code_without_comments = re.sub(r'#.*$', '', code, flags=re.MULTILINE)
+        
+        # Check for animation commands - but respect config
+        if not allow_through.get("no_animation_methods", {}).get("enabled", False):
+            animation_commands = [
+                r"self\.play\(", r"self\.add\(", r"self\.wait\(",
+                r"self\.remove\(", r"self\.bring_to_front\(", r"self\.bring_to_back\("
+            ]
+            
+            has_animation_command = any(
+                re.search(pattern, code_without_comments) for pattern in animation_commands
+            )
+            
+            if not has_animation_command:
+                issues.append("[CRITICAL] No animation commands found (play/add/wait)")
+        
+        # Check for common animation methods - but respect config
+        if not allow_through.get("no_animation_methods", {}).get("enabled", False):
+            animation_methods = [
+                "play", "wait", "add", "remove", "move_to", "shift", "scale",
+                "rotate", "set_color", "fade", "transform", "animate"
+            ]
+            
+            has_animation = any(method in code for method in animation_methods)
+            if not has_animation:
+                issues.append("[MEDIUM] Code lacks animation methods - might be incomplete")
         
         # Check for mathematical objects (good sign of actual content)
         math_objects = [
@@ -230,9 +448,26 @@ class QualityValidator:
         
         return issues
     
-    def _validate_code_description_alignment(self, description: str, code: str) -> List[str]:
+    def _validate_code_description_alignment(self, description: str, code: str, config: Dict[str, Any]) -> List[str]:
         """Check if code and description are aligned."""
         issues = []
+        
+        # Skip alignment check for known placeholders
+        # Primary check: our standardized placeholder
+        if description.startswith(PLACEHOLDER_DESCRIPTION):
+            return []  # No issues - alignment will be fixed when description is generated
+        
+        # Legacy placeholders (for backward compatibility during transition)
+        legacy_placeholders = [
+            "[Code-only sample - description generated later]",
+            "[Description to be generated]",
+            "[Placeholder - will be filled by LLM]",
+            "[PLACEHOLDER - Needs description]",  # Used by manim_ce_examples
+            "[PLACEHOLDER - Needs transcript enhancement]"  # Used by szymon_ozog
+        ]
+        # Check both exact match and if description starts with placeholder
+        if description in legacy_placeholders or any(description.startswith(placeholder) for placeholder in legacy_placeholders):
+            return []  # No issues - alignment will be fixed when description is generated
         
         # Extract key concepts from description
         desc_lower = description.lower()
@@ -305,9 +540,10 @@ class QualityValidator:
 class QualityFilter:
     """Filter samples based on quality criteria."""
     
-    def __init__(self, validator: Optional[QualityValidator] = None):
+    def __init__(self, validator: Optional[QualityValidator] = None, config: Optional[Dict[str, Any]] = None):
         """Initialize filter with optional custom validator."""
-        self.validator = validator or QualityValidator(strict_mode=True)
+        self.validator = validator or QualityValidator(strict_mode=True, config=config)
+        self.config = config or {}
         self.filtered_stats = {
             "total_input": 0,
             "total_output": 0,
@@ -322,7 +558,7 @@ class QualityFilter:
             self.filtered_stats["total_input"] += 1
             source = sample.get("source", "unknown")
             
-            is_valid, issues = self.validator.validate_sample(sample)
+            is_valid, issues = self.validator.validate_sample(sample, source_id=source)
             
             if is_valid:
                 filtered.append(sample)

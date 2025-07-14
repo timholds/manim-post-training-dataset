@@ -39,7 +39,8 @@ When you run `./prepare_data.py` with no arguments, it:
 3. Performs deduplication (removes exact code matches and >95% similar pairs)
 4. Creates 90/10 train/test split
 5. Saves output to `data_formatted_v2/` directory
-6. Does NOT apply augmentation or rendering validation by default
+6. Generates `data_sources.png` visualization showing source statistics
+7. Does NOT apply augmentation or rendering validation by default
 
 ## Quality Validation Modes
 

@@ -14,6 +14,7 @@ from datasets import load_dataset
 from ..base import BaseExtractor
 from ..registry import register_extractor
 from ..utils import fix_missing_imports
+from ..constants import PLACEHOLDER_DESCRIPTION
 
 logger = logging.getLogger(__name__)
 
@@ -42,10 +43,7 @@ class ThanksManimExtractor(BaseExtractor):
         self.dataset_name = self.config.get("dataset_name", "thanhkt/manim_code")
         self.split = self.config.get("split", "train")
         self.min_code_length = self.config.get("min_code_length", 50)
-        self.placeholder_description = self.config.get(
-            "placeholder_description", 
-            "[Code-only sample - description generated later]"
-        )
+        # Note: We ignore any placeholder_description from config and use the standardized one
     
     def estimate_sample_count(self) -> Optional[int]:
         """Return estimated number of samples."""
@@ -59,6 +57,7 @@ class ThanksManimExtractor(BaseExtractor):
             logger.warning("Ignoring descriptions due to 47.2% mismatch rate - treating as code-only")
             
             dataset = load_dataset(self.dataset_name, split=self.split)
+            logger.info(f"Dataset loaded with {len(dataset)} examples")
             
             # Track unique codes to avoid duplicates within this source
             seen_codes = set()
@@ -100,7 +99,7 @@ class ThanksManimExtractor(BaseExtractor):
                     code = fix_missing_imports(code)
                     
                     yield {
-                        "description": self.placeholder_description,
+                        "description": f"{PLACEHOLDER_DESCRIPTION} - Source: thanks_dataset",
                         "code": code,
                         "metadata": {
                             "needs_description": True,
@@ -113,12 +112,12 @@ class ThanksManimExtractor(BaseExtractor):
                     logger.warning(f"Error processing item {idx}: {e}")
                     continue
             
-            # Log statistics
+            # Log final stats
             logger.info(f"Thanks dataset extraction complete:")
-            logger.info(f"  Total items: {total_processed}")
-            logger.info(f"  Unique codes extracted: {len(seen_codes)}")
-            logger.info(f"  Duplicates skipped: {duplicates_skipped} ({duplicates_skipped/total_processed*100:.1f}%)")
-            logger.info(f"  Too short skipped: {too_short}")
+            logger.info(f"  Total processed: {total_processed}")
+            logger.info(f"  Unique samples: {len(seen_codes)}")
+            logger.info(f"  Duplicates skipped: {duplicates_skipped} ({duplicates_skipped/total_processed*100:.1f}% if total_processed > 0 else 0)")
+            logger.info(f"  Too short: {too_short}")
                     
         except Exception as e:
             logger.error(f"Failed to load HuggingFace dataset {self.dataset_name}: {e}")

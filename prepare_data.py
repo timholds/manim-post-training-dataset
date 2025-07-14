@@ -16,6 +16,8 @@ from extractors import get_registry
 from extractors.utils import create_conversation, normalize_description, augment_prompt, normalize_code, calculate_similarity
 from extractors.quality_validator import QualityValidator, QualityFilter
 from extractors.rendering_validator import RenderingValidator, BatchRenderValidator
+from extractors.constants import PLACEHOLDER_DESCRIPTION
+from analyze_code_length_distribution import analyze_code_lengths
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -31,7 +33,13 @@ def fill_placeholder_descriptions(samples: List[Dict[str, Any]], llm_config: Opt
     placeholders_found = 0
     for sample in samples:
         desc = sample.get("description", "")
-        # Check for common placeholder patterns
+        # Check for our standardized placeholder first
+        if desc.startswith(PLACEHOLDER_DESCRIPTION):
+            placeholders_found += 1
+            sample["needs_description"] = True
+            continue
+            
+        # Check for other common placeholder patterns
         if (len(desc) < 20 or 
             "[" in desc and "]" in desc or
             "TODO" in desc.upper() or 
@@ -234,17 +242,22 @@ def prepare_datasets(
     all_data = []
     dataset_stats = {}
     source_priorities = {}
+    source_visualization_data = {}  # For visualization
     
     for source_id in sources_to_process:
         logger.info(f"\nProcessing source: {source_id}")
         
         try:
-            # Get extractor config
+            # Get extractor config - pass the FULL quality config
+            # The extractor needs access to validation_actions, not just global_settings
             extractor_config = quality_config.get("global_settings", {}).copy()
             
             # Apply source-specific overrides
             if source_id in quality_config.get("source_overrides", {}):
                 extractor_config.update(quality_config["source_overrides"][source_id])
+            
+            # Add reference to full quality config for the validator
+            extractor_config["_quality_config"] = quality_config
             
             # Get extractor instance
             extractor = registry.get_extractor(source_id, extractor_config)
@@ -253,6 +266,15 @@ def prepare_datasets(
             # Extract samples
             samples = list(extractor)
             all_data.extend(samples)
+            
+            # Collect stats for visualization
+            lengths = [len(sample['code']) for sample in samples]
+            source_visualization_data[source_id] = {
+                'lengths': lengths,
+                'count': len(lengths),
+                'name': extractor.source_name,
+                'priority': extractor.priority
+            }
             
             dataset_stats[source_id] = {
                 "samples": len(samples),
@@ -271,6 +293,15 @@ def prepare_datasets(
         return
     
     logger.info(f"\nTotal samples collected: {len(all_data)}")
+    
+    # Generate data sources visualization
+    logger.info("\nGenerating data sources visualization...")
+    try:
+        viz_path = output_path / "data_sources.png"
+        analyze_code_lengths(source_visualization_data, str(viz_path), show_plot=False)
+        logger.info(f"Data sources visualization saved to: {viz_path}")
+    except Exception as e:
+        logger.warning(f"Failed to generate visualization: {e}")
     
     # Apply deduplication if requested
     dedup_stats = None

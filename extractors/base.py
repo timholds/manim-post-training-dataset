@@ -82,7 +82,12 @@ class BaseExtractor(ABC):
         # Lazy import to avoid circular dependency
         if self.enable_quality_validation and self._quality_validator is None:
             from .quality_validator import QualityValidator
-            self._quality_validator = QualityValidator(strict_mode=self.quality_strict_mode)
+            # Use full quality config if available, otherwise use extractor config
+            quality_config = self.config.get("_quality_config", self.config)
+            self._quality_validator = QualityValidator(
+                strict_mode=self.quality_strict_mode,
+                config=quality_config
+            )
         
         for sample in self.extract():
             transformed = self.transform_sample(sample)
@@ -94,7 +99,10 @@ class BaseExtractor(ABC):
             
             # Quality validation if enabled
             if self.enable_quality_validation:
-                is_valid, issues = self._quality_validator.validate_sample(transformed)
+                is_valid, issues = self._quality_validator.validate_sample(
+                    transformed, 
+                    source_id=self.source_id
+                )
                 if not is_valid:
                     logger.debug(f"Quality validation failed for {self.source_id}: {issues[:2]}")
                     continue

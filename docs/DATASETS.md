@@ -241,11 +241,89 @@ Rather than storing transcripts now, it's better to:
 2. Use `claude -p` to analyze code + transcript together
 3. Generate more accurate descriptions with full context
 
-# Potential Datasets for Future Integration
+# Top Priority Datasets for Future Integration (Recommended)
+
+## 1. manim-Chemistry Plugin ⭐⭐⭐⭐⭐
+- **Repository**: https://github.com/UnMolDeQuimica/manim-Chemistry
+- **Stars**: 72 stars, 14 forks
+- **Priority**: HIGHEST - Fills critical chemistry gap (currently 0% coverage)
+- **Content Types**:
+  - Periodic table visualizations
+  - 2D/3D molecular structures
+  - Atomic orbital plotting
+  - Bohr atom diagrams
+- **Estimated Yield**: 15-25 unique examples
+- **Quality**: Well-documented plugin with clear examples
+- **Documentation**: https://manim-chemistry.readthedocs.io/
+- **Installation**: `pip install manim-chemistry`
+- **Extraction Difficulty**: Medium - need to extract from docs and example files
+- **Unique Value**: Only chemistry-focused Manim resource found
+
+## 2. Theorem of Beethoven's AnimationsWithManim ⭐⭐⭐⭐⭐
+- **Repository**: https://github.com/Elteoremadebeethoven/AnimationsWithManim
+- **Stars**: 1.2k stars, 217 forks
+- **Priority**: HIGHEST - Comprehensive educational content
+- **Content Types**:
+  - Text formatting and TeX formulas
+  - Transformations and visual tools
+  - 2D/3D plotting
+  - Update functions and animations
+  - Challenges (Roulette Epicycloids, Dragon fractal)
+- **Estimated Yield**: 20-30 distinct examples
+- **Quality**: Created by prominent Manim educator
+- **Documentation**: https://elteoremadebeethoven.github.io/manim_3feb_docs.github.io/
+- **Extraction Difficulty**: Easy - well-organized tutorial structure
+- **Unique Value**: High educational value, beginner-friendly
+
+## 3. manim-physics Plugin ⭐⭐⭐⭐
+- **Repository**: https://github.com/Matheart/manim-physics
+- **Stars**: 365 stars, 36 forks
+- **Priority**: HIGH - Fills physics gap (currently only 5% coverage)
+- **Content Types**:
+  - Rigid mechanics simulations
+  - Electromagnetism visualizations
+  - Wave physics animations
+  - 2D physics simulations
+- **Estimated Yield**: 10-15 physics simulation examples
+- **Quality**: Official plugin with documentation
+- **Documentation**: https://manim-physics.readthedocs.io/en/latest/
+- **Installation**: `pip install manim-physics`
+- **Extraction Difficulty**: Medium - need to extract from docs and examples
+- **Note**: Maintainer may have limited time for updates
+
+## Other High-Value Sources
+
+### Brian Amedee's Manim-Tutorials-2021 ⭐⭐⭐⭐
+- **Repository**: https://github.com/brianamedee/Manim-Tutorials-2021
+- **Stars**: 111 stars, 45 forks
+- **Content**: 9 comprehensive tutorial files covering intro to advanced 3D
+- **Unique Value**: Strong 3D animation coverage (currently <10% in dataset)
+- **Topics**: Linear algebra, probability, calculus, surface revolutions
+- **Quality**: High-quality educational scripts
+
+### nathanliow/Physics-with-Manim ⭐⭐⭐
+- **Repository**: https://github.com/nathanliow/Physics-with-Manim
+- **Stars**: 2 stars (new repository)
+- **Content**: AP Physics C curriculum animations
+- **Current**: Ampere's Law, Biot-Savart's Law (WIP)
+- **Potential**: Growing repository for physics education
+
+### HarleyCoops/Math-To-Manim ⭐⭐⭐
+- **Repository**: https://github.com/HarleyCoops/Math-To-Manim
+- **Unique Feature**: Uses AI to generate Manim animations from text
+- **Content**: Complex mathematical concepts including quantum mechanics
+- **Extraction Challenge**: May need to extract generated examples
+
+### ManimML ⭐⭐⭐
+- **Repository**: https://github.com/helblazer811/ManimML
+- **Focus**: Machine learning visualizations
+- **Content**: Neural networks, CNNs, ML concepts
+- **Value**: Real-world data visualization examples
+
+# Existing Potential Datasets (Lower Priority)
 - Manim CE Examples, https://docs.manim.community/en/stable/examples.html, code yes, video yes, transcript no, date no  
 - Manim Repository, https://themanimrepository.wordpress.com/, code yes, video yes, transcript no, date yes  
 - Manim CE Awesome manim, https://github.com/ManimCommunity/awesome-manim (look at README to find those with GitHub/youtube pairs)  
-- Dan4Life, videos yes https://www.youtube.com/@dan4life/videos, code yes https://github.com/Dan4Life/AoC2024_Videos, 
 - A Little More Than An Introduction To Series - code yes https://github.com/JonathanWoollett-Light/a-little-more-than-an-introduction-to, video yes videos https://www.youtube.com/channel/UCze6YPZo6gzj-Nup2P59KUA, , transcript yes, date yes, 
 - Kilacola (2) video yes https://www.youtube.com/channel/UCYiEcjVorHS78RgoqKiIFgQ, code yes https://github.com/kilacoda/videos, 
 - Reducible (long videos) video yes, https://www.youtube.com/@Reducible/videos, code yes https://github.com/nipunramk/Reducible

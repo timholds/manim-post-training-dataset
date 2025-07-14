@@ -87,7 +87,7 @@
     }
   },
   
-  "source_specific_overrides": {
+  "source_overrides": {
     "thanks_dataset": {
       "auto_fix": {
         "single_line_code": {

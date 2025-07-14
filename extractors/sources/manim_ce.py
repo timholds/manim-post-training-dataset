@@ -10,6 +10,7 @@ from typing import Iterator, Dict, Any, Optional
 
 from ..base import BaseExtractor
 from ..registry import register_extractor
+from ..constants import PLACEHOLDER_DESCRIPTION
 
 logger = logging.getLogger(__name__)
 
@@ -110,7 +111,7 @@ class ManimCEExamplesExtractor(BaseExtractor):
             # Create the sample with placeholder description
             # We'll generate descriptions later using LLM with code analysis
             example = {
-                "description": f"[PLACEHOLDER - Needs description] Create an animation for: {class_name} ({category})",
+                "description": f"{PLACEHOLDER_DESCRIPTION} - Source: manim_ce_examples, Class: {class_name}",
                 "code": code_text,
                 "metadata": {
                     "example_name": class_name,
@@ -171,7 +172,7 @@ class ManimCEExamplesExtractor(BaseExtractor):
                             },
                             {
                                 "from": "user",
-                                "value": f"[PLACEHOLDER - Needs description] Create an animation for: {example['metadata']['example_name']} ({example['metadata']['category']})"
+                                "value": f"{PLACEHOLDER_DESCRIPTION} - Source: manim_ce_examples"
                             },
                             {
                                 "from": "assistant",
