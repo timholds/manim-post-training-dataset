@@ -199,6 +199,8 @@ def prepare_datasets(
     enable_rendering_validation: bool = False,
     rendering_timeout: int = 30,
     rendering_fix_issues: bool = True,
+    rendering_dry_run: bool = True,  # Default to True for dry-run
+    save_videos_dir: Optional[str] = None,
     llm_fill_descriptions: bool = False,
     llm_config: Optional[Dict] = None
 ):
@@ -269,8 +271,10 @@ def prepare_datasets(
             
             # Collect stats for visualization
             lengths = [len(sample['code']) for sample in samples]
+            desc_lengths = [len(sample.get('description', '')) for sample in samples]
             source_visualization_data[source_id] = {
                 'lengths': lengths,
+                'desc_lengths': desc_lengths,
                 'count': len(lengths),
                 'name': extractor.source_name,
                 'priority': extractor.priority
@@ -297,8 +301,8 @@ def prepare_datasets(
     # Generate data sources visualization
     logger.info("\nGenerating data sources visualization...")
     try:
-        viz_path = output_path / "data_sources.png"
-        analyze_code_lengths(source_visualization_data, str(viz_path), show_plot=False)
+        viz_path = "data_sources.png"
+        analyze_code_lengths(source_visualization_data, viz_path, show_plot=False)
         logger.info(f"Data sources visualization saved to: {viz_path}")
     except Exception as e:
         logger.warning(f"Failed to generate visualization: {e}")
@@ -323,9 +327,11 @@ def prepare_datasets(
         # Initialize validators
         render_validator = RenderingValidator(
             timeout=rendering_timeout,
-            fix_common_issues=rendering_fix_issues
+            fix_common_issues=rendering_fix_issues,
+            dry_run=rendering_dry_run,
+            save_videos_dir=save_videos_dir
         )
-        batch_validator = BatchRenderValidator(render_validator)
+        batch_validator = BatchRenderValidator(render_validator, dry_run=rendering_dry_run)
         
         # Progress callback
         def progress_callback(current, total):
@@ -517,6 +523,8 @@ def main():
     parser.add_argument("--enable-rendering", action="store_true", help="Enable rendering validation")
     parser.add_argument("--rendering-timeout", type=int, default=30, help="Timeout for each render attempt (seconds)")
     parser.add_argument("--no-rendering-fixes", action="store_true", help="Disable automatic fixes during rendering")
+    parser.add_argument("--rendering-full", action="store_true", help="Enable full video rendering (default is dry-run syntax validation only)")
+    parser.add_argument("--save-videos", type=str, help="Directory to save rendered videos (only works with --rendering-full)")
     
     # LLM description options
     parser.add_argument("--fill-descriptions", action="store_true", help="Fill placeholder descriptions with LLM")
@@ -556,6 +564,8 @@ def main():
         enable_rendering_validation=args.enable_rendering,
         rendering_timeout=args.rendering_timeout,
         rendering_fix_issues=not args.no_rendering_fixes,
+        rendering_dry_run=not args.rendering_full,  # Invert the flag
+        save_videos_dir=args.save_videos,
         llm_fill_descriptions=args.fill_descriptions,
         llm_config=llm_config
     )

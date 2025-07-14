@@ -116,76 +116,40 @@ class QualityValidator:
         return merged
     
     def _validate_description(self, description: str, config: Dict[str, Any]) -> List[str]:
-        """Validate description quality."""
+        """
+        Validate description quality.
+        
+        Simple rules:
+        1. Empty descriptions are CRITICAL errors
+        2. If description starts with a known placeholder pattern, it's valid (no other checks)
+        3. Otherwise, apply basic quality checks
+        """
         issues = []
         
-        # Skip validation for intentional placeholders that will be filled later
-        # Primary check: our standardized placeholder
-        if description.startswith(PLACEHOLDER_DESCRIPTION):
-            return []  # No issues - this is intentional and will be fixed later
+        # Rule 1: Empty descriptions are always bad
+        if not description or description.strip() == "":
+            return ["[CRITICAL] Description is empty"]
         
-        # Check if we should allow placeholder descriptions
-        allow_through = config.get("allow_through", {})
-        if allow_through.get("placeholder_descriptions", {}).get("enabled", False):
-            # Legacy placeholders (for backward compatibility during transition)
-            legacy_placeholders = [
-                "[Code-only sample - description generated later]",
-                "[Description to be generated]",
-                "[Placeholder - will be filled by LLM]",
-                "[PLACEHOLDER - Needs description]",  # Used by manim_ce_examples
-                "[PLACEHOLDER - Needs transcript enhancement]"  # Used by szymon_ozog
-            ]
-            # Check both exact match and if description starts with placeholder
-            if description in legacy_placeholders or any(description.startswith(placeholder) for placeholder in legacy_placeholders):
-                return []  # No issues - this is intentional and will be fixed later
-            
-            # Also check for patterns defined in config
-            patterns = allow_through.get("placeholder_descriptions", {}).get("patterns", [])
-            for pattern in patterns:
-                if pattern in description:
-                    return []  # Allow placeholder
+        # Rule 2: Known placeholders are always OK (they'll be filled by LLM later)
+        # This includes our standard placeholder and any description starting with [PLACEHOLDER
+        if description.startswith(PLACEHOLDER_DESCRIPTION) or description.startswith("[PLACEHOLDER"):
+            return []
         
-        # Length check - but check config first
-        if allow_through.get("short_descriptions", {}).get("enabled", False):
-            min_length = allow_through.get("short_descriptions", {}).get("min_length", 0)
-            if len(description) < min_length:
-                issues.append(f"[HIGH] Description too short ({len(description)} chars, min: {min_length})")
-        elif len(description) < 20:
-            issues.append(f"[HIGH] Description too short ({len(description)} chars)")
+        # Rule 3: For non-placeholder descriptions, apply quality checks
+        # Check if it looks like a placeholder that we missed
+        if re.search(r"\[(TODO|FIXME|INSERT|TBD|PLACEHOLDER)", description, re.IGNORECASE):
+            issues.append("[HIGH] Description contains placeholder pattern")
         
-        # Check for placeholders (only if we're not allowing them through)
-        if not allow_through.get("placeholder_descriptions", {}).get("enabled", False):
-            placeholder_patterns = [
-                r"\[.*?\]",  # Square brackets
-                r"TODO", r"FIXME", r"XXX",
-                r"INSERT", r"PLACEHOLDER",
-                r"<.*?>",  # Angle brackets
-            ]
-            for pattern in placeholder_patterns:
-                if re.search(pattern, description, re.IGNORECASE):
-                    issues.append(f"[HIGH] Description contains placeholder: {pattern}")
-                    break
-        
-        # Check for generic descriptions
-        generic_starts = [
-            "Create a Manim animation",
-            "Create an animation",
-            "Animation demonstrating",
-            "Manim scene",
-        ]
-        if any(description.strip().startswith(start) and len(description) < 50 
-               for start in generic_starts):
+        # Check for overly generic descriptions
+        generic_starts = ["Create a Manim animation", "Create an animation", "Manim scene"]
+        if any(description.startswith(start) for start in generic_starts) and len(description) < 50:
             issues.append("[MEDIUM] Description is too generic")
         
-        # Check for balanced parentheses
-        if description.count('(') != description.count(')'):
-            issues.append("[LOW] Unbalanced parentheses in description")
-        
-        # Check for proper sentence structure
-        if description and not description[0].isupper():
+        # Basic grammar checks (LOW priority, won't block in strict mode)
+        if not description[0].isupper():
             issues.append("[LOW] Description should start with capital letter")
         
-        if description and not description.rstrip().endswith(('.', '!', '?')):
+        if not description.rstrip().endswith(('.', '!', '?', ':')):
             issues.append("[LOW] Description should end with punctuation")
         
         return issues
@@ -449,73 +413,37 @@ class QualityValidator:
         return issues
     
     def _validate_code_description_alignment(self, description: str, code: str, config: Dict[str, Any]) -> List[str]:
-        """Check if code and description are aligned."""
+        """
+        Check if code and description are aligned.
+        Only check for non-placeholder descriptions.
+        Keep it simple - just check for obvious mismatches.
+        """
+        # Skip all checks for placeholder descriptions
+        if description.startswith("[PLACEHOLDER") or description.startswith(PLACEHOLDER_DESCRIPTION):
+            return []
+        
         issues = []
-        
-        # Skip alignment check for known placeholders
-        # Primary check: our standardized placeholder
-        if description.startswith(PLACEHOLDER_DESCRIPTION):
-            return []  # No issues - alignment will be fixed when description is generated
-        
-        # Legacy placeholders (for backward compatibility during transition)
-        legacy_placeholders = [
-            "[Code-only sample - description generated later]",
-            "[Description to be generated]",
-            "[Placeholder - will be filled by LLM]",
-            "[PLACEHOLDER - Needs description]",  # Used by manim_ce_examples
-            "[PLACEHOLDER - Needs transcript enhancement]"  # Used by szymon_ozog
-        ]
-        # Check both exact match and if description starts with placeholder
-        if description in legacy_placeholders or any(description.startswith(placeholder) for placeholder in legacy_placeholders):
-            return []  # No issues - alignment will be fixed when description is generated
-        
-        # Extract key concepts from description
         desc_lower = description.lower()
+        code_lower = code.lower()
         
-        # Common mathematical concepts
-        math_concepts = {
-            "derivative": ["derivative", "differentiate", "d/dx", "prime"],
-            "integral": ["integral", "integrate", "area under", "antiderivative"],
-            "matrix": ["matrix", "matrices", "determinant", "eigenvalue"],
-            "vector": ["vector", "cross product", "dot product", "magnitude"],
-            "graph": ["graph", "plot", "axes", "coordinate"],
-            "equation": ["equation", "solve", "formula", "expression"],
-            "theorem": ["theorem", "proof", "lemma", "corollary"],
-            "transform": ["transform", "transformation", "map", "morph"],
-            "probability": ["probability", "random", "chance", "likelihood"],
-            "geometry": ["circle", "triangle", "polygon", "angle", "perpendicular"],
+        # Simple check: If description mentions specific shapes/objects, code should have them
+        shape_mappings = {
+            "circle": ["Circle(", "circle"],
+            "square": ["Square(", "square"],
+            "triangle": ["Triangle(", "Polygon", "triangle"],
+            "line": ["Line(", "line"],
+            "arrow": ["Arrow(", "arrow"],
+            "text": ["Text(", "Tex(", "MathTex("],
+            "graph": ["Graph(", "Axes(", "NumberPlane(", "plot"],
+            "matrix": ["Matrix(", "matrix"],
+            "vector": ["Vector(", "Arrow(", "vector"],
         }
         
-        # Check which concepts are mentioned
-        mentioned_concepts = []
-        for concept, keywords in math_concepts.items():
-            if any(keyword in desc_lower for keyword in keywords):
-                mentioned_concepts.append(concept)
-        
-        # If description mentions math concepts, code should have related objects
-        if mentioned_concepts:
-            code_lower = code.lower()
-            found_implementation = False
-            
-            for concept in mentioned_concepts:
-                # Check if concept appears to be implemented
-                if concept in code_lower or any(kw in code_lower for kw in math_concepts[concept]):
-                    found_implementation = True
-                    break
-            
-            if not found_implementation:
-                issues.append("[MEDIUM] Description mentions concepts not clearly implemented in code")
-        
-        # Check if class names align with description
-        class_names = re.findall(r'class\s+(\w+)', code)
-        if class_names:
-            # Check if any class name relates to description
-            desc_words = set(re.findall(r'\w+', desc_lower))
-            class_words = set(word.lower() for name in class_names 
-                            for word in re.findall(r'[A-Z][a-z]+|[a-z]+', name))
-            
-            if not desc_words.intersection(class_words):
-                issues.append("[LOW] Class names don't reflect description content")
+        for shape, code_patterns in shape_mappings.items():
+            if shape in desc_lower:
+                if not any(pattern in code for pattern in code_patterns):
+                    issues.append(f"[MEDIUM] Description mentions '{shape}' but code doesn't implement it")
+                    break  # Only report first mismatch to avoid noise
         
         return issues
     

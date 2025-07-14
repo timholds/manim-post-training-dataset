@@ -48,8 +48,10 @@ def analyze_code_lengths(source_data=None, output_path='data_sources.png', show_
                 samples = list(extractor)
                 
                 lengths = [len(sample['code']) for sample in samples]
+                desc_lengths = [len(sample.get('description', '')) for sample in samples]
                 source_data[source_id] = {
                     'lengths': lengths,
+                    'desc_lengths': desc_lengths,
                     'count': len(lengths),
                     'name': extractor.source_name,
                     'priority': extractor.priority
@@ -64,23 +66,33 @@ def analyze_code_lengths(source_data=None, output_path='data_sources.png', show_
         all_lengths = []
         for data in source_data.values():
             all_lengths.extend(data['lengths'])
+            # Ensure desc_lengths exists for provided data
+            if 'desc_lengths' not in data:
+                data['desc_lengths'] = [0] * len(data['lengths'])  # Placeholder
     
     # Calculate overall statistics
     all_lengths = np.array(all_lengths)
     overall_median = np.median(all_lengths)
     overall_mean = np.mean(all_lengths)
     
-    # Define colors for priority levels
-    colors = plt.cm.viridis(np.linspace(0, 1, 6))  # 5 priority levels + 1
+    # Define consistent color scheme for sources
+    # Create a color palette that assigns consistent colors to each source
+    unique_sources = sorted(source_data.keys())
+    # Use a qualitative color palette that handles many categories well
+    colors_palette = plt.cm.Set3(np.linspace(0, 1, len(unique_sources)))
+    source_colors = {source: colors_palette[i] for i, source in enumerate(unique_sources)}
     
-    # Create figure with subplots
+    # Also keep priority-based colors for certain plots
+    priority_colors = plt.cm.viridis(np.linspace(0, 1, 6))  # 5 priority levels + 1
+    
+    # Create figure with subplots (3x3 grid)
     fig = plt.figure(figsize=(20, 16))
     
     # 1. Total characters by source
     ax1 = plt.subplot(3, 3, 1)
     sources_sorted = sorted(source_data.keys(), key=lambda x: sum(source_data[x]['lengths']), reverse=True)
     total_chars = [sum(source_data[s]['lengths']) for s in sources_sorted]
-    colors_total = [colors[source_data[s]['priority']] for s in sources_sorted]
+    colors_total = [source_colors[s] for s in sources_sorted]
     
     bars = ax1.bar(range(len(sources_sorted)), total_chars, color=colors_total)
     ax1.set_xticks(range(len(sources_sorted)))
@@ -101,7 +113,7 @@ def analyze_code_lengths(source_data=None, output_path='data_sources.png', show_
     ax2 = plt.subplot(3, 3, 2)
     sources = sorted(source_data.keys(), key=lambda x: source_data[x]['count'], reverse=True)
     counts = [source_data[s]['count'] for s in sources]
-    colors_bar = [colors[source_data[s]['priority']] for s in sources]
+    colors_bar = [source_colors[s] for s in sources]
     
     bars = ax2.bar(range(len(sources)), counts, color=colors_bar)
     ax2.set_xticks(range(len(sources)))
@@ -120,7 +132,7 @@ def analyze_code_lengths(source_data=None, output_path='data_sources.png', show_
                               key=lambda x: np.median(source_data[x]['lengths']) if source_data[x]['lengths'] else 0)
     medians = [np.median(source_data[s]['lengths']) if source_data[s]['lengths'] else 0 
                for s in sources_by_median]
-    colors_median = [colors[source_data[s]['priority']] for s in sources_by_median]
+    colors_median = [source_colors[s] for s in sources_by_median]
     
     ax3.barh(range(len(sources_by_median)), medians, color=colors_median)
     ax3.set_yticks(range(len(sources_by_median)))
@@ -145,10 +157,9 @@ def analyze_code_lengths(source_data=None, output_path='data_sources.png', show_
     ax4.set_title('Code Length Ranges by Source')
     ax4.tick_params(axis='x', rotation=45)
     
-    # Color boxes by priority
+    # Color boxes by source
     for patch, source_id in zip(bp['boxes'], box_labels):
-        priority = source_data[source_id]['priority']
-        patch.set_facecolor(colors[priority])
+        patch.set_facecolor(source_colors[source_id])
     
     # 5. Code length categories distribution with more buckets
     ax5 = plt.subplot(3, 3, 5)
@@ -219,7 +230,7 @@ def analyze_code_lengths(source_data=None, output_path='data_sources.png', show_
     for source_id in all_sources_sorted:
         values = [source_by_category[cat].get(source_id, 0) for cat in categories]
         if sum(values) > 0:  # Only plot sources with data
-            ax6.bar(categories, values, bottom=bottom, label=source_id)
+            ax6.bar(categories, values, bottom=bottom, label=source_id, color=source_colors[source_id])
             bottom += values
     
     ax6.set_xlabel('Code Length Category')
@@ -238,7 +249,7 @@ def analyze_code_lengths(source_data=None, output_path='data_sources.png', show_
         lengths = sorted(source_data[source_id]['lengths'])
         if lengths:
             cumulative = np.arange(1, len(lengths) + 1) / len(lengths)
-            ax7.plot(lengths, cumulative, label=source_id, linewidth=2)
+            ax7.plot(lengths, cumulative, label=source_id, linewidth=2, color=source_colors[source_id])
     
     ax7.set_xscale('log')
     ax7.set_xlabel('Code Length (characters)')
@@ -253,7 +264,7 @@ def analyze_code_lengths(source_data=None, output_path='data_sources.png', show_
                             key=lambda x: np.mean(source_data[x]['lengths']) if source_data[x]['lengths'] else 0)
     means = [np.mean(source_data[s]['lengths']) if source_data[s]['lengths'] else 0 
              for s in sources_by_mean]
-    colors_mean = [colors[source_data[s]['priority']] for s in sources_by_mean]
+    colors_mean = [source_colors[s] for s in sources_by_mean]
     
     ax8.barh(range(len(sources_by_mean)), means, color=colors_mean)
     ax8.set_yticks(range(len(sources_by_mean)))
@@ -262,6 +273,40 @@ def analyze_code_lengths(source_data=None, output_path='data_sources.png', show_
     ax8.set_xscale('log')
     ax8.set_title('Mean Code Length by Source')
     ax8.grid(True, axis='x', alpha=0.3)
+    
+    # 9. Description length distribution by source
+    ax9 = plt.subplot(3, 3, 9)
+    
+    # Calculate description length statistics for each source
+    desc_data = []
+    desc_labels = []
+    desc_colors = []
+    
+    for source_id in sorted(source_data.keys(), key=lambda x: np.median(source_data[x]['desc_lengths']) if source_data[x]['desc_lengths'] and any(l > 0 for l in source_data[x]['desc_lengths']) else 0, reverse=True):
+        desc_lengths = source_data[source_id]['desc_lengths']
+        # Only include sources that have meaningful descriptions (not all zeros)
+        if desc_lengths and any(l > 0 for l in desc_lengths):
+            desc_data.append(desc_lengths)
+            desc_labels.append(source_id)
+            desc_colors.append(source_colors[source_id])
+    
+    if desc_data:  # Only create plot if we have description data
+        bp = ax9.boxplot(desc_data, patch_artist=True, labels=desc_labels)
+        ax9.set_yscale('log')
+        ax9.set_ylabel('Description Length (characters, log scale)')
+        ax9.set_title('Description Length Distribution')
+        ax9.tick_params(axis='x', rotation=45)
+        
+        # Color boxes by source
+        for patch, color in zip(bp['boxes'], desc_colors):
+            patch.set_facecolor(color)
+    else:
+        # If no description data, show a message
+        ax9.text(0.5, 0.5, 'No description data\navailable', ha='center', va='center', 
+                transform=ax9.transAxes, fontsize=12)
+        ax9.set_title('Description Length Distribution')
+        ax9.set_xticks([])
+        ax9.set_yticks([])
     
     # Adjust layout and save
     try:

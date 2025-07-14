@@ -91,6 +91,10 @@ class BenjaminHacklExtractor(BaseExtractor):
                                 code_lines = code_lines[1:]
                             code = '\n'.join(code_lines).strip()
                             
+                            # Check if we need imports (same logic as in Python file processing)
+                            if 'from manim import' not in code and 'import' not in code:
+                                code = "from manim import *\n\n" + code
+                            
                             # Generate description
                             if current_description:
                                 description = f"Tutorial Episode {episode_num} - {episode_title}: {current_description}"

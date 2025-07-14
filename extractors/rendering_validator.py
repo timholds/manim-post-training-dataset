@@ -13,8 +13,17 @@ import traceback
 from pathlib import Path
 from typing import Dict, Any, Tuple, List, Optional
 import logging
+from concurrent.futures import ProcessPoolExecutor, as_completed
 
 logger = logging.getLogger(__name__)
+
+
+def _worker_validate_sample(idx: int, sample: Dict[str, Any], timeout: int, quality: str, fix_common_issues: bool, dry_run: bool = False, save_videos_dir: Optional[str] = None) -> Tuple[bool, Dict]:
+    """Worker function for parallel validation."""
+    validator = RenderingValidator(timeout=timeout, quality=quality, cleanup=True, fix_common_issues=fix_common_issues, dry_run=dry_run, save_videos_dir=save_videos_dir)
+    code = sample.get("code", "")
+    sample_id = f"{sample.get('source', 'unknown')}_{idx}"
+    return validator.validate_render(code, sample_id)
 
 
 class RenderingValidator:
@@ -24,7 +33,9 @@ class RenderingValidator:
                  timeout: int = 30,
                  quality: str = "low_quality",
                  cleanup: bool = True,
-                 fix_common_issues: bool = True):
+                 fix_common_issues: bool = True,
+                 dry_run: bool = False,
+                 save_videos_dir: Optional[str] = None):
         """
         Initialize rendering validator.
         
@@ -33,11 +44,19 @@ class RenderingValidator:
             quality: Manim quality setting (low_quality for speed)
             cleanup: Whether to clean up temp files
             fix_common_issues: Whether to attempt auto-fixes
+            dry_run: If True, only validate syntax without rendering
+            save_videos_dir: Directory to save rendered videos (None to not save)
         """
         self.timeout = timeout
         self.quality = quality
         self.cleanup = cleanup
         self.fix_common_issues = fix_common_issues
+        self.dry_run = dry_run
+        self.save_videos_dir = save_videos_dir
+        
+        # Create save directory if specified
+        if self.save_videos_dir:
+            Path(self.save_videos_dir).mkdir(parents=True, exist_ok=True)
         
         self.stats = {
             "total_validated": 0,
@@ -81,6 +100,29 @@ class RenderingValidator:
     
     def _try_render(self, code: str, sample_id: str) -> Tuple[bool, Dict[str, Any]]:
         """Attempt to render code once."""
+        # Always do basic validation first
+        try:
+            ast.parse(code)
+        except SyntaxError as e:
+            return False, {
+                "error": f"Syntax error at line {e.lineno}: {e.msg}",
+                "line": e.lineno
+            }
+        
+        # Check for Scene class
+        scene_name = self._extract_scene_name(code)
+        if not scene_name:
+            return False, {"error": "No Scene class found"}
+        
+        # Check for construct method
+        if "def construct" not in code:
+            return False, {"error": "No construct method found"}
+        
+        # If dry run, stop here
+        if self.dry_run:
+            return True, {"dry_run": True, "scene_name": scene_name}
+        
+        # Otherwise do actual render
         with tempfile.TemporaryDirectory() as tmpdir:
             # Write code to temp file
             script_path = Path(tmpdir) / f"{sample_id}.py"
@@ -119,10 +161,18 @@ class RenderingValidator:
                     video_files = list(output_dir.rglob("*.mp4"))
                     if video_files:
                         video_size = video_files[0].stat().st_size
+                        temp_video_path = str(video_files[0])
+                        
+                        # Save video if directory specified
+                        saved_video_path = None
+                        if self.save_videos_dir:
+                            saved_video_path = self._save_video(video_files[0], sample_id)
+                        
                         return True, {
                             "render_time": render_time,
                             "video_size": video_size,
-                            "video_path": str(video_files[0]),
+                            "video_path": temp_video_path,
+                            "saved_video_path": saved_video_path,
                             "stdout": result.stdout[-500:] if result.stdout else ""
                         }
                     else:
@@ -149,6 +199,27 @@ class RenderingValidator:
                     "error": f"Unexpected error: {str(e)}",
                     "traceback": traceback.format_exc()
                 }
+    
+    def _save_video(self, video_path: Path, sample_id: str) -> Optional[str]:
+        """Save video to persistent directory."""
+        try:
+            import shutil
+            # Create a safe filename from sample_id
+            safe_filename = re.sub(r'[^a-zA-Z0-9_-]', '_', sample_id)
+            saved_path = Path(self.save_videos_dir) / f"{safe_filename}.mp4"
+            
+            # Handle filename conflicts
+            counter = 1
+            while saved_path.exists():
+                saved_path = Path(self.save_videos_dir) / f"{safe_filename}_{counter}.mp4"
+                counter += 1
+            
+            shutil.copy2(video_path, saved_path)
+            logger.info(f"Saved video: {saved_path}")
+            return str(saved_path)
+        except Exception as e:
+            logger.warning(f"Failed to save video for {sample_id}: {e}")
+            return None
     
     def _extract_scene_name(self, code: str) -> Optional[str]:
         """Extract the Scene class name from code."""
@@ -247,9 +318,11 @@ class RenderingValidator:
         """Generate validation report."""
         report = []
         report.append("=== Rendering Validation Report ===")
+        if self.dry_run:
+            report.append("Mode: DRY RUN (syntax validation only)")
         report.append(f"Total validated: {self.stats['total_validated']}")
-        report.append(f"Successful renders: {self.stats['successful_renders']} ({self.stats['successful_renders']/max(1, self.stats['total_validated'])*100:.1f}%)")
-        report.append(f"Failed renders: {self.stats['failed_renders']} ({self.stats['failed_renders']/max(1, self.stats['total_validated'])*100:.1f}%)")
+        report.append(f"Successful {'validations' if self.dry_run else 'renders'}: {self.stats['successful_renders']} ({self.stats['successful_renders']/max(1, self.stats['total_validated'])*100:.1f}%)")
+        report.append(f"Failed {'validations' if self.dry_run else 'renders'}: {self.stats['failed_renders']} ({self.stats['failed_renders']/max(1, self.stats['total_validated'])*100:.1f}%)")
         
         if self.fix_common_issues:
             report.append(f"Fixed and rendered: {self.stats['fixed_and_rendered']} ({self.stats['fixed_and_rendered']/max(1, self.stats['total_validated'])*100:.1f}%)")
@@ -267,29 +340,43 @@ class BatchRenderValidator:
     
     def __init__(self, 
                  validator: Optional[RenderingValidator] = None,
-                 max_workers: int = 4,
-                 save_failed_samples: bool = True):
+                 max_workers: Optional[int] = None,
+                 save_failed_samples: bool = True,
+                 dry_run: bool = False):
         """
         Initialize batch validator.
         
         Args:
             validator: RenderingValidator instance
-            max_workers: Max parallel validation processes  
+            max_workers: Max parallel validation processes (defaults to CPU count // 2)
             save_failed_samples: Whether to save failed samples for analysis
+            dry_run: If True, only validate syntax without rendering
         """
-        self.validator = validator or RenderingValidator()
-        self.max_workers = max_workers
+        import multiprocessing
+        self.validator = validator or RenderingValidator(dry_run=dry_run)
+        self.max_workers = max_workers or max(1, multiprocessing.cpu_count() // 2)
         self.save_failed_samples = save_failed_samples
         self.failed_samples = []
+        self.dry_run = dry_run
     
     def validate_dataset(self, samples: List[Dict[str, Any]], 
                         progress_callback=None) -> Tuple[List[Dict], List[Dict]]:
         """
-        Validate a dataset of samples.
+        Validate a dataset of samples using parallel processing.
         
         Returns:
             (valid_samples, invalid_samples)
         """
+        if self.max_workers > 1 and len(samples) > 10:
+            # Use parallel processing
+            return self._validate_parallel(samples, progress_callback)
+        else:
+            # Fall back to sequential for small datasets
+            return self._validate_sequential(samples, progress_callback)
+    
+    def _validate_sequential(self, samples: List[Dict[str, Any]], 
+                           progress_callback=None) -> Tuple[List[Dict], List[Dict]]:
+        """Sequential validation."""
         valid_samples = []
         invalid_samples = []
         
@@ -301,6 +388,73 @@ class BatchRenderValidator:
             sample_id = f"{sample.get('source', 'unknown')}_{i}"
             
             success, details = self.validator.validate_render(code, sample_id)
+            
+            if success:
+                sample["rendering_validated"] = True
+                if details.get("was_fixed"):
+                    sample["auto_fixed"] = True
+                    sample["fixes_applied"] = details["fixes_applied"]
+                valid_samples.append(sample)
+            else:
+                sample["rendering_failed"] = True
+                sample["render_error"] = details.get("error", "Unknown error")
+                invalid_samples.append(sample)
+                
+                if self.save_failed_samples and len(self.failed_samples) < 100:
+                    self.failed_samples.append({
+                        "source": sample.get("source"),
+                        "description": sample.get("description", "")[:200],
+                        "error": details.get("error", ""),
+                        "stderr": details.get("stderr", "")[:500]
+                    })
+        
+        return valid_samples, invalid_samples
+    
+    def _validate_parallel(self, samples: List[Dict[str, Any]], 
+                         progress_callback=None) -> Tuple[List[Dict], List[Dict]]:
+        """Parallel validation using ProcessPoolExecutor."""
+        from functools import partial
+        
+        # Create worker function with fixed parameters
+        worker = partial(_worker_validate_sample,
+                        timeout=self.validator.timeout,
+                        quality=self.validator.quality,
+                        fix_common_issues=self.validator.fix_common_issues,
+                        dry_run=self.dry_run,
+                        save_videos_dir=self.validator.save_videos_dir)
+        
+        # Process samples in parallel
+        with ProcessPoolExecutor(max_workers=self.max_workers) as executor:
+            # Submit all jobs
+            futures = [(executor.submit(worker, i, sample), i) 
+                      for i, sample in enumerate(samples)]
+            
+            # Collect results
+            results = [None] * len(samples)
+            completed = 0
+            
+            for future, idx in futures:
+                try:
+                    results[idx] = future.result()
+                    completed += 1
+                    if progress_callback:
+                        progress_callback(completed, len(samples))
+                except Exception as e:
+                    logger.error(f"Failed to process sample {idx}: {e}")
+                    completed += 1
+                    if progress_callback:
+                        progress_callback(completed, len(samples))
+        
+        # Sort results
+        valid_samples = []
+        invalid_samples = []
+        
+        for i, result in enumerate(results):
+            if result is None:
+                continue
+                
+            sample = samples[i]
+            success, details = result
             
             if success:
                 sample["rendering_validated"] = True

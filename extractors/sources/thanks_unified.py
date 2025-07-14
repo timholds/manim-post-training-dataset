@@ -13,7 +13,7 @@ from datasets import load_dataset
 
 from ..base import BaseExtractor
 from ..registry import register_extractor
-from ..utils import fix_missing_imports
+from ..utils import fix_missing_imports, fix_code_syntax_issues
 from ..constants import PLACEHOLDER_DESCRIPTION
 
 logger = logging.getLogger(__name__)
@@ -95,8 +95,8 @@ class ThanksManimExtractor(BaseExtractor):
                     if code.startswith('\\n'):
                         code = code[2:].lstrip()
                     
-                    # Apply missing imports fix
-                    code = fix_missing_imports(code)
+                    # Apply comprehensive code fixes
+                    code = fix_code_syntax_issues(code)
                     
                     yield {
                         "description": f"{PLACEHOLDER_DESCRIPTION} - Source: thanks_dataset",

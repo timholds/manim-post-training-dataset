@@ -17,6 +17,103 @@ def fix_missing_imports(code: str) -> str:
     return code
 
 
+def fix_code_syntax_issues(code: str) -> str:
+    """Comprehensive code fixing for common syntax issues in dataset."""
+    code = code.strip()
+    
+    # 1. Remove generation artifacts
+    code = re.sub(r'</?s>', '', code)  # Remove <s> and </s> tokens
+    code = re.sub(r'<\|endoftext\|>', '', code)  # Remove end-of-text tokens
+    code = re.sub(r'<\|end\|>', '', code)  # Remove other end tokens
+    code = re.sub(r'\s*</s>\s*$', '', code)  # Remove </s> at end with whitespace
+    
+    # 2. Handle truncated code (ending with ...)
+    if code.endswith('...'):
+        code = code[:-3].rstrip()
+    
+    # 2b. Handle truncated code that ends with incomplete statements
+    # Look for lines that end with : but have no following indented content
+    lines = code.split('\n')
+    fixed_lines = []
+    for i, line in enumerate(lines):
+        fixed_lines.append(line)
+        # If line ends with : and is last line or next line is not indented, add pass
+        if line.rstrip().endswith(':') and (i == len(lines) - 1 or 
+                                            (i + 1 < len(lines) and not lines[i + 1].strip().startswith(' ') and lines[i + 1].strip() != '')):
+            # Add appropriate indentation + pass
+            if 'def ' in line or 'class ' in line:
+                if 'class ' in line:
+                    fixed_lines.append('    pass')
+                else:  # def
+                    fixed_lines.append('        pass')
+            elif 'for ' in line or 'if ' in line or 'while ' in line or 'try:' in line or 'except' in line:
+                # These need extra indentation
+                current_indent = len(line) - len(line.lstrip())
+                fixed_lines.append(' ' * (current_indent + 4) + 'pass')
+    
+    code = '\n'.join(fixed_lines)
+    
+    # 3. Fix single-line compression - look for missing newlines
+    # This is the most common issue: "from manim import * class MyScene(Scene): def construct(self): ..."
+    if '\n' not in code and 'class' in code and 'def' in code:
+        # This looks like compressed single-line code
+        # Insert newlines after key patterns
+        code = re.sub(r'(\*\s+)(class\s)', r'\1\n\n\2', code)
+        code = re.sub(r'(\):\s+)(def\s)', r'\1\n    \2', code)
+        code = re.sub(r'(\):\s+)(self\.)', r'\1\n        \2', code)
+        code = re.sub(r'(\):\s+)([a-zA-Z_][a-zA-Z0-9_]*\s*=)', r'\1\n        \2', code)  # Variables after :
+    
+    # 4. Fix multiple statements on one line (after method body statements)
+    # Look for patterns like "var = value) self.method(" or "statement self.method("
+    code = re.sub(r'(\))\s+(self\.)', r'\1\n        \2', code)
+    code = re.sub(r'([a-zA-Z_][a-zA-Z0-9_]*)\s+(self\.)', r'\1\n        \2', code)
+    code = re.sub(r'(\])\s+(self\.)', r'\1\n        \2', code)  # After list/dict endings
+    
+    # 4. Fix indentation issues line by line
+    lines = code.split('\n')
+    fixed_lines = []
+    in_class = False
+    in_method = False
+    
+    for line in lines:
+        stripped = line.strip()
+        
+        if not stripped:  # Empty line
+            fixed_lines.append('')
+            continue
+        
+        # Track class and method context
+        if stripped.startswith('class ') and stripped.endswith(':'):
+            in_class = True
+            in_method = False
+            fixed_lines.append(stripped)  # Class should be at top level
+        elif stripped.startswith('def ') and stripped.endswith(':'):
+            in_method = True
+            # Ensure method is properly indented if we're in a class
+            if in_class:
+                fixed_lines.append('    ' + stripped)
+            else:
+                fixed_lines.append(stripped)
+        else:
+            # Regular code line - fix indentation based on context
+            if in_method and in_class:
+                # Should be double-indented (method body in class)
+                fixed_lines.append('        ' + stripped)
+            elif in_class and not in_method:
+                # Should be single-indented (class body)
+                fixed_lines.append('    ' + stripped)
+            else:
+                # Top-level code
+                fixed_lines.append(stripped)
+    
+    code = '\n'.join(fixed_lines)
+    
+    # 5. Add missing imports if still needed
+    code = fix_missing_imports(code)
+    
+    return code
+
+
 def ensure_proper_code_format(code: str) -> str:
     """Ensure code has proper Scene class structure."""
     code = code.strip()
