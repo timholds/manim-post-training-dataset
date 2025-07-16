@@ -57,8 +57,11 @@ class ReducibleExtractor(BaseExtractor):
             with open(file_path, 'r', encoding='utf-8') as f:
                 content = f.read()
             
-            # Parse AST
-            tree = ast.parse(content)
+            # Parse AST with warnings suppressed
+            import warnings
+            with warnings.catch_warnings():
+                warnings.filterwarnings("ignore", category=SyntaxWarning)
+                tree = ast.parse(content)
             
             # Find all Scene classes
             for node in ast.walk(tree):
@@ -96,6 +99,7 @@ class ReducibleExtractor(BaseExtractor):
     
     def _clean_code(self, code: str, file_path: Path) -> str:
         """Clean and prepare code for training."""
+        
         # Remove sys.path.insert workarounds
         lines = code.split('\n')
         cleaned_lines = []

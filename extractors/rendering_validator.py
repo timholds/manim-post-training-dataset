@@ -57,7 +57,7 @@ class RenderingValidator:
             dry_run: If True, only validate syntax without rendering
             save_videos_dir: Directory to save rendered videos (None to not save)
             fast_mode: If True, only render last frame as PNG instead of full video
-            use_cache: If True, skip rendering if video already exists in save_videos_dir
+            use_cache: If True, skip saving video if file already exists in save_videos_dir
         """
         self.timeout = timeout
         self.quality = quality
@@ -139,21 +139,7 @@ class RenderingValidator:
         if self.dry_run:
             return True, {"dry_run": True, "scene_name": scene_name}
         
-        # Check cache if enabled and save directory exists
-        if self.use_cache and self.save_videos_dir and not self.fast_mode:
-            cached_path = Path(self.save_videos_dir) / f"{sample_id}.mp4"
-            if cached_path.exists() and cached_path.stat().st_size > 0:
-                return True, {
-                    "render_time": 0,
-                    "file_size": cached_path.stat().st_size,
-                    "output_path": str(cached_path),
-                    "saved_path": str(cached_path),
-                    "fast_mode": False,
-                    "cached": True,
-                    "stdout": "Video loaded from cache"
-                }
-        
-        # Otherwise do actual render
+        # Always do actual render for validation
         with tempfile.TemporaryDirectory() as tmpdir:
             # Write code to temp file
             script_path = Path(tmpdir) / f"{sample_id}.py"
@@ -260,15 +246,41 @@ class RenderingValidator:
         """Save video to persistent directory."""
         try:
             import shutil
+            # Extract source from sample_id (format: "source_idx" or "source_idx_fixed")
+            # We need to handle source names that contain underscores
+            parts = sample_id.split('_')
+            
+            # Check if it ends with "_fixed"
+            if len(parts) >= 2 and parts[-1] == 'fixed':
+                # Remove the "_fixed" suffix and process the rest
+                parts = parts[:-1]
+            
+            if len(parts) >= 2 and parts[-1].isdigit():
+                # Last part is the index, everything before is the source name
+                source_name = '_'.join(parts[:-1])
+            else:
+                source_name = 'unknown'
+            
+            # Create source-specific subdirectory
+            source_dir = Path(self.save_videos_dir) / source_name
+            source_dir.mkdir(parents=True, exist_ok=True)
+            
             # Create a safe filename from sample_id
             safe_filename = re.sub(r'[^a-zA-Z0-9_-]', '_', sample_id)
-            saved_path = Path(self.save_videos_dir) / f"{safe_filename}.mp4"
+            saved_path = source_dir / f"{safe_filename}.mp4"
             
-            # Handle filename conflicts
-            counter = 1
-            while saved_path.exists():
-                saved_path = Path(self.save_videos_dir) / f"{safe_filename}_{counter}.mp4"
-                counter += 1
+            # If caching is enabled and file already exists, don't overwrite
+            if self.use_cache and saved_path.exists() and saved_path.stat().st_size > 0:
+                self.stats["cached_videos"] += 1
+                logger.debug(f"Video already exists, skipping save: {saved_path}")
+                return str(saved_path)
+            
+            # Handle filename conflicts (only if not using cache)
+            if not self.use_cache:
+                counter = 1
+                while saved_path.exists():
+                    saved_path = source_dir / f"{safe_filename}_{counter}.mp4"
+                    counter += 1
             
             shutil.copy2(video_path, saved_path)
             logger.info(f"Saved video: {saved_path}")

@@ -152,11 +152,11 @@ class SzymonOzogExtractor(BaseExtractor):
                                 code = code.split("```python")[1].split("```")[0].strip()
                             
                             # Fix missing dependencies in szymon_ozog samples
-                            code = self._fix_szymon_dependencies(code)
+                            fixed_code = self._fix_szymon_dependencies(code)
                             
                             yield {
                                 "description": description,
-                                "code": code,
+                                "code": fixed_code,
                                 "metadata": {
                                     "source_file": str(self.file_path),
                                     "line_number": line_num
@@ -173,170 +173,66 @@ class SzymonOzogExtractor(BaseExtractor):
     
     def _fix_szymon_dependencies(self, code: str) -> str:
         """
-        Completely reconstruct szymon_ozog code to fix fundamental corruption.
-        The original JSONL contains truncated/corrupted samples that need aggressive reconstruction.
+        Simple fix for szymon_ozog samples - just convert VoiceoverScene to Scene.
+        
+        The code is already ManimCE, we just need to:
+        1. Replace VoiceoverScene with Scene
+        2. Remove VoiceoverScene-specific methods
+        3. Handle the few custom dependencies (TOC, etc.)
         """
         # Strip markdown formatting if present
         if code.startswith('```python'):
             code = code.split('```python')[1].split('```')[0].strip()
         
-        # Step 1: Extract the basic class structure
-        class_match = re.search(r'class\s+(\w+)\s*\([^)]*\):', code)
-        if not class_match:
-            return self._create_minimal_scene(code)
-        
-        class_name = class_match.group(1)
-        
-        # Step 2: Check if this is a fundamentally corrupted sample (incomplete code, missing dependencies)
-        corruption_indicators = [
-            'ani',  # Truncated animation code
-            'anims.append',  # Incomplete append statement
-            code.count('(') != code.count(')'),  # Unmatched parentheses
-            'toc.' in code and 'TOC(' not in code,  # Missing dependency references
-            'bookmark' in code,  # VoiceoverScene-specific functionality
-            'self.voiceover' in code,  # VoiceoverScene methods
-            'wait_until_bookmark' in code,  # VoiceoverScene methods
-            'get_remaining_duration' in code,  # VoiceoverScene methods
-        ]
-        
-        is_corrupted = any(corruption_indicators)
-        
-        if is_corrupted:
-            logger.info(f"Detected corrupted sample {class_name}, reconstructing...")
-            return self._reconstruct_corrupted_sample(class_name, code)
-        
-        # Step 3: For non-corrupted samples, apply standard fixes
-        # Replace VoiceoverScene with Scene
+        # Simple fix 1: Replace VoiceoverScene with Scene
         code = re.sub(r'class\s+(\w+)\s*\(\s*VoiceoverScene\s*\):', r'class \1(Scene):', code)
         
-        # Remove problematic method calls
-        code = re.sub(
-            r'self\.set_speech_service\s*\([^)]*\)',
-            '# Speech service removed',
-            code
-        )
+        # Simple fix 2: Remove self.set_speech_service() calls (including multi-line)
+        code = re.sub(r'self\.set_speech_service\s*\([^)]*\)\s*', '', code)
         
-        # Add proper imports
-        if 'from manim import *' not in code:
-            code = 'from manim import *\n\n' + code
+        # Clean up orphaned parentheses and malformed lines
+        lines = code.split('\n')
+        cleaned_lines = []
+        for line in lines:
+            stripped = line.strip()
+            # Skip orphaned parentheses and comment lines
+            if stripped in [')', ');', '):', "GTTSService(transcription_model='base')"]:
+                continue
+            cleaned_lines.append(line)
+        code = '\n'.join(cleaned_lines)
+        
+        # Simple fix 3: Replace voiceover blocks with regular code
+        # Pattern: with self.voiceover(...): content
+        def replace_voiceover_block(match):
+            block_content = match.group(1)
+            # Remove one level of indentation from the content
+            lines = block_content.split('\n')
+            dedented_lines = []
+            for line in lines:
+                if line.strip():  # Skip empty lines
+                    # Remove 4 spaces of indentation if present
+                    if line.startswith('    '):
+                        dedented_lines.append(line[4:])
+                    else:
+                        dedented_lines.append(line)
+                else:
+                    dedented_lines.append(line)
+            return '\n'.join(dedented_lines)
+        
+        voiceover_pattern = r'with\s+self\.voiceover\([^)]*\)\s*as\s+\w+:\s*\n((?:[ \t]+.*\n?)*)'
+        code = re.sub(voiceover_pattern, replace_voiceover_block, code, flags=re.DOTALL)
+        
+        # Simple fix 4: Remove voiceover-specific method calls
+        code = re.sub(r'self\.wait_until_bookmark\([^)]*\)\s*\n?', 'self.wait(1)\n', code)
+        code = re.sub(r'\.get_remaining_duration\(\)[^;\n]*', '', code)
+        
+        # Simple fix 5: Handle TOC - replace with a simple rectangle for now
+        code = re.sub(r'toc\s*=\s*TOC\([^)]*\)', 'toc = Rectangle()', code)
+        
+        # Simple fix 6: Replace common toc methods with basic alternatives
+        code = re.sub(r'toc\.header\.next_to\([^)]*\)', 'Text("Table of Contents")', code)
+        code = re.sub(r'toc\.entries\[(\d+)\]\.main', r'Text("Entry \1")', code)
+        code = re.sub(r'toc\.entries', 'VGroup()', code)
+        code = re.sub(r'toc\.get_open\([^)]*\)', 'Rectangle()', code)
         
         return code
-    
-    def _create_minimal_scene(self, original_code: str) -> str:
-        """Create a minimal working scene when class structure can't be extracted."""
-        return """from manim import *
-
-class MinimalScene(Scene):
-    def construct(self):
-        # Original code was too corrupted to reconstruct
-        circle = Circle()
-        self.play(Create(circle))
-        self.wait()
-"""
-    
-    def _reconstruct_corrupted_sample(self, class_name: str, original_code: str) -> str:
-        """
-        Reconstruct a working Scene from corrupted szymon_ozog data.
-        Uses pattern matching to salvage usable Manim objects and animations.
-        """
-        # Try to extract any usable Manim object creations
-        manim_objects = []
-        animations = []
-        
-        # Look for object creations line by line to handle multiline definitions better
-        lines = original_code.split('\n')
-        current_object = None
-        paren_count = 0
-        
-        for line in lines:
-            stripped = line.strip()
-            
-            # Check for start of object creation - capture more Manim objects
-            simple_object_match = re.match(r'(\w+)\s*=\s*(Square|Circle|Rectangle|Text|Line|Dot|Arrow|Triangle|Polygon|Group|VGroup)\s*\(', stripped)
-            
-            if simple_object_match:
-                var_name = simple_object_match.group(1)
-                obj_type = simple_object_match.group(2)
-                
-                # Create simplified versions of each object type
-                if obj_type == 'Text':
-                    creation_code = f'{var_name} = Text("Sample")'
-                elif obj_type == 'Arrow':
-                    creation_code = f'{var_name} = Arrow()'
-                elif obj_type == 'VGroup':
-                    creation_code = f'{var_name} = VGroup(Circle(), Square())'
-                else:
-                    creation_code = f'{var_name} = {obj_type}()'
-                
-                manim_objects.append((var_name, creation_code))
-        
-        # Look for simple self.play animations that we can salvage
-        for line in lines:
-            stripped = line.strip()
-            if stripped.startswith('self.play(') and ('Create(' in stripped or 'Write(' in stripped or 'FadeIn(' in stripped):
-                # Extract the object being animated if it's simple
-                create_match = re.search(r'self\.play\s*\(\s*(Create|Write|FadeIn)\s*\(\s*(\w+)', stripped)
-                if create_match:
-                    anim_type = create_match.group(1)
-                    obj_name = create_match.group(2)
-                    # Only include if we have this object defined
-                    if any(obj_name == var for var, _ in manim_objects):
-                        animations.append(f'self.play({anim_type}({obj_name}))')
-        
-        # Build the reconstructed scene
-        code_parts = [
-            "from manim import *",
-            "",
-            f"class {class_name}(Scene):",
-            "    def construct(self):",
-        ]
-        
-        # Determine which objects are referenced in animations
-        animated_objects = set()
-        for animation in animations:
-            # Extract object name from animation string like "self.play(Create(obj_name))"
-            match = re.search(r'Create\((\w+)\)', animation)
-            if match:
-                animated_objects.add(match.group(1))
-        
-        # Include all objects that are animated, plus some extras for a complete scene
-        objects_to_include = []
-        obj_dict = {var_name: creation_code for var_name, creation_code in manim_objects}
-        
-        # First, add all animated objects
-        for obj_name in animated_objects:
-            if obj_name in obj_dict:
-                objects_to_include.append((obj_name, obj_dict[obj_name]))
-        
-        # Then add remaining objects up to a reasonable limit
-        for var_name, creation_code in manim_objects:
-            if var_name not in animated_objects and len(objects_to_include) < 6:
-                objects_to_include.append((var_name, creation_code))
-        
-        # Add object creations
-        if objects_to_include:
-            for var_name, creation_code in objects_to_include:
-                code_parts.append(f"        {creation_code}")
-            code_parts.append("")
-        
-        # Add animations - now all referenced objects should be defined
-        if animations:
-            for animation in animations[:3]:  # Limit to 3 animations
-                code_parts.append(f"        {animation}")
-        
-        # If no valid animations found, create animations for the objects we did extract
-        if not animations and objects_to_include:
-            for var_name, _ in objects_to_include[:2]:  # Animate first 2 objects
-                code_parts.append(f"        self.play(Create({var_name}))")
-            code_parts.append("        self.wait()")
-        
-        # If no objects and no animations, create minimal scene
-        if not animations and not objects_to_include:
-            code_parts.extend([
-                "        # Reconstructed from corrupted data",
-                "        circle = Circle()",
-                "        self.play(Create(circle))",
-                "        self.wait()"
-            ])
-        
-        return '\n'.join(code_parts)

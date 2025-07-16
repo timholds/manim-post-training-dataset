@@ -5,7 +5,7 @@ This project fine-tunes various code generation models on a curated Manim datase
 ## Overview
 
 - **Purpose**: Create a model-agnostic dataset for fine-tuning code generation models on Manim animations
-- **Current Dataset**: 3,869 unique animation examples from 5+ high-quality sources
+- **Current Dataset**: 4,000+ unique animation examples from 11 high-quality sources
 - **Architecture**: Plugin-based data pipeline for easy extensibility
 - **Training Method**: QLoRA with Unsloth optimizations  
 - **Supported Models**: QWEN2.5-Coder, CodeLlama, DeepSeek, CodeGemma, Stable Code
@@ -22,8 +22,8 @@ This project fine-tunes various code generation models on a curated Manim datase
 
 ```bash
 # Clone repository
-git clone <repo-url>
-cd manim-post-training
+git clone https://github.com/timholds/manim-post-training-dataset
+cd manim-post-training-dataset
 
 # Create and activate virtual environment
 python -m venv manim-env
@@ -37,16 +37,16 @@ uv pip install -r requirements.txt
 
 ```bash
 # Download and process all datasets with deduplication
-python prepare_data.py prepare
+python prepare_data.py
 
 # List available data sources
 python prepare_data.py --list-sources
 
 # Process specific datasets
-python prepare_data.py prepare --sources bespoke_manim thanks_dataset
+python prepare_data.py --sources bespoke_manim thanks_dataset
 
 # Enable data augmentation (creates variations of prompts)
-python prepare_data.py prepare --augmentation
+python prepare_data.py --augmentation
 ```
 
 ### Enhance with LLM Descriptions (Optional)

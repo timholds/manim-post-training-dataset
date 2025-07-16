@@ -277,43 +277,13 @@ class ManimCodeFixer:
         return code, fixes_applied
     
     def fix_tex_string_escapes(self, code: str) -> Tuple[str, List[str]]:
-        """Fix TeX string escape sequences by converting to raw strings."""
-        fixes_applied = []
+        """DEPRECATED: This function is no longer used.
         
-        # Simple, targeted fix for the most common case: Tex/MathTex/Text with backslashes
-        # Only fix strings that contain problematic escape sequences
-        tex_functions = ['MathTex', 'Text', 'Tex', 'TexMobject', 'TextMobject']
-        
-        for func_name in tex_functions:
-            # Find all occurrences of Tex("...") or Tex('...')
-            pattern = rf'{func_name}\s*\(\s*(["\'])([^"\']*)\1'
-            
-            for match in re.finditer(pattern, code):
-                quote_char = match.group(1)
-                string_content = match.group(2)
-                
-                # Check if this string has problematic escape sequences
-                # Common LaTeX commands that cause issues: \L, \p, \c, \b, \f, \n, \r, \t
-                if '\\' in string_content:
-                    # Check if it's already a raw string
-                    start = match.start()
-                    if start > 0 and code[start-1] == 'r':
-                        continue
-                    
-                    # Only fix if it contains invalid Python escape sequences
-                    try:
-                        # Try to parse as a regular string literal
-                        compile(f'"{string_content}"', '<string>', 'eval')
-                    except SyntaxError:
-                        # This will fail for invalid escape sequences like \L
-                        # Convert to raw string
-                        old_text = match.group(0)
-                        new_text = f'{func_name}(r{quote_char}{string_content}{quote_char})'
-                        code = code.replace(old_text, new_text, 1)
-                        if 'tex_string_to_raw' not in fixes_applied:
-                            fixes_applied.append('tex_string_to_raw')
-        
-        return code, fixes_applied
+        We now fix escape sequences at the source during extraction rather than
+        trying to fix them with complex regex patterns.
+        """
+        # No-op - return code unchanged
+        return code, []
     
     def apply_fixes(self, sample: Dict[str, Any]) -> FixResult:
         """Apply all conservative fixes to a sample."""

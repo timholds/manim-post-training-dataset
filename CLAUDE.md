@@ -31,6 +31,16 @@ class MySourceExtractor(BaseExtractor):
         # yield samples
 ``` 
 
+## Source Data Organization
+
+All source data is organized in the `data/` directory for better repository structure:
+- **Cloned repositories**: `data/xiaoxiae-videos/`, `data/Reducible/`, `data/Likey00-manim-data-structures/`, `data/manim-with-ease/`
+- **Local data**: `data/AoC2024_Videos/`, `data/data_szymon_ozog/`, `data/thanks_dataset_cleaned/`
+- **Cache-based**: HuggingFace datasets downloaded to `~/.cache/manim_datasets/`
+- **Dynamic**: Some extractors (kutuzova) clone to temp directories automatically
+
+Extractors automatically handle downloading/cloning missing sources when first run.
+
 ## Default Behavior of prepare_data.py
 
 When you run `./prepare_data.py` with no arguments, it:

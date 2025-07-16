@@ -255,13 +255,25 @@ def prepare_datasets(
     logger.info(f"Discovered {len(registry.list_sources())} extractors: {', '.join(registry.list_sources())}")
     
     # Select sources to process
+    # Define problematic sources that should be excluded by default
+    problematic_sources = {'szymon_ozog'}  # Uses manim_voiceover, not standard ManimCE
+    
     if sources:
         sources_to_process = [s for s in sources if s in registry.list_sources()]
         if len(sources_to_process) < len(sources):
             missing = set(sources) - set(sources_to_process)
             logger.warning(f"Sources not found: {missing}")
     else:
-        sources_to_process = registry.list_sources()
+        # By default, exclude problematic sources
+        all_sources = registry.list_sources()
+        sources_to_process = [s for s in all_sources if s not in problematic_sources]
+        
+        if len(sources_to_process) < len(all_sources):
+            excluded = problematic_sources.intersection(set(all_sources))
+            if excluded:
+                logger.info(f"📌 Excluding problematic sources by default: {', '.join(excluded)}")
+                logger.info(f"   Reason: szymon_ozog uses manim_voiceover (different package)")
+                logger.info(f"   To force inclusion, use: --sources szymon_ozog")
     
     # Collect all data
     all_data = []
