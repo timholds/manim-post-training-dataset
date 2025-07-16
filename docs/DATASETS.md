@@ -198,7 +198,7 @@ With the growing number of datasets, we've moved from individual extraction scri
 registry = DatasetRegistry()
 registry.register("dan4life_aoc2024", Dan4LifeExtractor())
 registry.register("szymon_ozog", SzymonOzogExtractor(repo_paths))
-registry.register("reducible", ReducibleExtractor())
+registry.register("reducible", ReducibleExtractor())  # ManimCE content only (2022 + MarchingSquares)
 
 # Extract all at once
 samples = registry.extract_all()
@@ -326,12 +326,40 @@ Rather than storing transcripts now, it's better to:
 - Manim CE Awesome manim, https://github.com/ManimCommunity/awesome-manim (look at README to find those with GitHub/youtube pairs)  
 - A Little More Than An Introduction To Series - code yes https://github.com/JonathanWoollett-Light/a-little-more-than-an-introduction-to, video yes videos https://www.youtube.com/channel/UCze6YPZo6gzj-Nup2P59KUA, , transcript yes, date yes, 
 - Kilacola (2) video yes https://www.youtube.com/channel/UCYiEcjVorHS78RgoqKiIFgQ, code yes https://github.com/kilacoda/videos, 
-- Reducible (long videos) video yes, https://www.youtube.com/@Reducible/videos, code yes https://github.com/nipunramk/Reducible
+- Reducible (long videos) video yes, https://www.youtube.com/@Reducible/videos, code yes https://github.com/nipunramk/Reducible (filtered for ManimCE content only)
 - Kutuzova (5), videos yes https://www.youtube.com/@deeplearningthatworks/videos, code yes (ipynb) https://github.com/sgalkina/animations/tree/main/notebooks  
 - Visualizing Deep Learning (2), videos yes (playlist) https://www.youtube.com/playlist?list=PLyPKqVSnetmEOp_g_hfabuRAs9ET-shl_, code yes https://github.com/vivek3141/dl-visualization  
 - Vivek3141 (22) https://www.youtube.com/@vcubingx/videos, code yes https://github.com/vivek3141/videos (might have overlap with Visualizing Deep Learning series)
 
 # Evaluated Datasets (Not Included)
+
+## ManimGL-Based Datasets (Incompatible with ManimCE)
+
+These datasets use the older ManimGL library which has different syntax and is incompatible with our ManimCE-focused training:
+
+### Reducible
+- **Source**: https://github.com/nipunramk/Reducible
+- **Evaluated**: 2025-07-14
+- **Decision**: EXCLUDED
+- **Reason**: Uses ManimGL syntax exclusively
+- **Evidence**: 
+  - All files use `from manimlib.imports import *`
+  - Uses deprecated classes: `TextMobject`, `TexMobject`
+  - 93.8% rendering failure rate (242→15 samples)
+- **Content**: High-quality educational videos on algorithms and computer science
+- **Note**: Would be valuable if converted to ManimCE, but conversion is non-trivial
+
+### Vivek3141
+- **Source**: https://github.com/vivek3141/videos
+- **Decision**: EXCLUDED
+- **Reason**: Uses ManimGL syntax (88% of samples)
+- **Rendering failure rate**: 99.7% (705→2 samples)
+
+### Vivek3141 Deep Learning
+- **Source**: https://github.com/vivek3141/dl-visualization
+- **Decision**: EXCLUDED  
+- **Reason**: Uses ManimGL syntax (100% of samples)
+- **Rendering failure rate**: 100% (16→0 samples)
 
 ## Chilao Physics Animations
 - **Source**: https://github.com/chilaochen/manim_projects

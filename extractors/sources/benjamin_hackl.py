@@ -28,8 +28,8 @@ class BenjaminHacklExtractor(BaseExtractor):
     
     def _validate_config(self) -> None:
         """Validate configuration."""
-        self.manim_ease_path = Path(self.config.get("manim_ease_path", "manim-with-ease"))
-        self.manim_content_path = Path(self.config.get("manim_content_path", "manim-content"))
+        self.manim_ease_path = Path(self.config.get("manim_ease_path", "data/manim-with-ease"))
+        self.manim_content_path = Path(self.config.get("manim_content_path", "data/manim-content"))
         
         if not self.manim_ease_path.exists():
             logger.warning(f"manim-with-ease path not found: {self.manim_ease_path}")

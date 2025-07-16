@@ -55,8 +55,22 @@ class KutuzovaExtractor(BaseExtractor):
                 notebook = json.load(f)
             
             cells = notebook.get('cells', [])
-            manim_code_blocks = []
             current_description = None
+            
+            # Extract imports from early cells
+            imports = []
+            for i, cell in enumerate(cells[:5]):  # Check first 5 cells for imports
+                if cell.get('cell_type') == 'code':
+                    source = ''.join(cell.get('source', []))
+                    
+                    # Look for import statements
+                    for line in source.split('\n'):
+                        line = line.strip()
+                        if (line.startswith('import ') or line.startswith('from ')) and line not in imports:
+                            imports.append(line)
+            
+            # Create import block
+            import_block = '\n'.join(imports) if imports else 'from manim import *'
             
             for cell in cells:
                 if cell.get('cell_type') == 'markdown':
@@ -68,8 +82,8 @@ class KutuzovaExtractor(BaseExtractor):
                 elif cell.get('cell_type') == 'code':
                     source = ''.join(cell.get('source', []))
                     
-                    # Check if this is a Manim code cell
-                    if 'manim' in source.lower() and ('class' in source and 'Scene' in source):
+                    # Check if this is a Manim Scene cell
+                    if 'class' in source and 'Scene' in source:
                         # Generate description based on class name and context
                         class_name = None
                         for line in source.split('\n'):
@@ -97,13 +111,23 @@ class KutuzovaExtractor(BaseExtractor):
                                 topic = ' '.join(words).lower()
                                 description = f"Create a Manim animation that visualizes {topic} concepts"
                             
+                            # Check if code already has imports
+                            has_imports = any(line.strip().startswith(('import ', 'from ')) for line in source.split('\n'))
+                            
+                            # Prepend imports if needed
+                            if not has_imports:
+                                final_code = f"{import_block}\n\n{source.strip()}"
+                            else:
+                                final_code = source.strip()
+                            
                             yield {
                                 "description": description,
-                                "code": source.strip(),
+                                "code": final_code,
                                 "metadata": {
                                     "source_file": notebook_path.name,
                                     "class_name": class_name,
-                                    "topic": "deep_learning"
+                                    "topic": "deep_learning",
+                                    "imports_added": not has_imports
                                 }
                             }
                             

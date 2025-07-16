@@ -1,4 +1,4 @@
-"""Reducible YouTube channel dataset extractor."""
+"""Reducible YouTube channel dataset extractor - ManimCE content only."""
 
 import ast
 import json
@@ -15,21 +15,39 @@ logger = logging.getLogger(__name__)
 
 @register_extractor
 class ReducibleExtractor(BaseExtractor):
-    """Extractor for Reducible's YouTube channel manim animations."""
+    """Extractor for Reducible's YouTube channel manim animations - ManimCE only."""
     
     source_id = "reducible"
-    source_name = "Reducible YouTube Channel"
+    source_name = "Reducible YouTube Channel (ManimCE)"
     priority = 3  # High quality educational content
     
     def _validate_config(self) -> None:
         """Validate configuration."""
-        self.repo_path = Path(self.config.get("repo_path", "Reducible/Reducible"))
+        self.repo_path = Path(self.config.get("repo_path", "data/Reducible"))
         if not self.repo_path.exists():
             logger.warning(f"Repository not found: {self.repo_path}")
     
     def estimate_sample_count(self) -> Optional[int]:
         """Return estimated number of samples."""
-        return 285  # Based on our analysis
+        # Based on analysis: 2022 directory + MarchingSquares from 2021
+        return 150  # Reduced estimate for ManimCE content only
+    
+    def _is_manim_ce_file(self, file_path: Path) -> bool:
+        """Check if a file uses ManimCE imports."""
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+            
+            # Check for ManimCE imports
+            if "from manim import" in content:
+                # Make sure it's not also importing ManimGL
+                if "from manimlib" not in content:
+                    return True
+            
+            return False
+        except Exception as e:
+            logger.debug(f"Error checking file {file_path}: {e}")
+            return False
     
     def _extract_scenes_from_file(self, file_path: Path) -> List[Tuple[str, str]]:
         """Extract Scene classes from a Python file."""
@@ -53,141 +71,146 @@ class ReducibleExtractor(BaseExtractor):
                         elif isinstance(base, ast.Attribute):
                             base_names.append(base.attr)
                     
-                    # Check if it's a Scene class
-                    scene_bases = ['Scene', 'ThreeDScene', 'VectorScene', 'GraphScene', 
-                                  'MovingCameraScene', 'ZoomedScene', 'LinearTransformationScene']
+                    # Common Scene base classes in Manim
+                    scene_bases = ['Scene', 'MovingCameraScene', 'ThreeDScene', 
+                                   'GraphScene', 'LinearTransformationScene', 
+                                   'SampleSpaceScene', 'ZoomedScene']
+                    
                     if any(base in scene_bases for base in base_names):
-                        # Extract class code
-                        class_start = node.lineno - 1
-                        class_end = node.end_lineno
-                        class_lines = content.split('\n')[class_start:class_end]
-                        class_code = '\n'.join(class_lines)
-                        
-                        # Clean up indentation
-                        min_indent = float('inf')
-                        for line in class_lines:
-                            if line.strip():
-                                indent = len(line) - len(line.lstrip())
-                                min_indent = min(min_indent, indent)
-                        
-                        if min_indent < float('inf'):
-                            class_lines = [line[min_indent:] if len(line) > min_indent else line 
-                                         for line in class_lines]
-                            class_code = '\n'.join(class_lines)
-                        
-                        scenes.append((node.name, class_code))
+                        # Extract the class code
+                        class_code = ast.get_source_segment(content, node)
+                        if class_code:
+                            scenes.append((node.name, class_code))
+                        else:
+                            # Fallback: extract manually
+                            start_line = node.lineno - 1
+                            end_line = node.end_lineno
+                            lines = content.split('\n')[start_line:end_line]
+                            class_code = '\n'.join(lines)
+                            scenes.append((node.name, class_code))
             
         except Exception as e:
-            logger.warning(f"Error processing {file_path}: {e}")
+            logger.error(f"Error extracting scenes from {file_path}: {e}")
         
         return scenes
     
-    def _generate_description(self, class_name: str, file_path: Path) -> str:
-        """Generate a description based on class name and file context."""
-        # Extract topic from file path
-        parts = file_path.parts
-        year = None
-        topic = None
+    def _clean_code(self, code: str, file_path: Path) -> str:
+        """Clean and prepare code for training."""
+        # Remove sys.path.insert workarounds
+        lines = code.split('\n')
+        cleaned_lines = []
+        skip_next = False
         
-        for i, part in enumerate(parts):
-            if part in ['2019', '2020', '2021', '2022']:
-                year = part
-                if i + 1 < len(parts):
-                    topic = parts[i + 1]
-                break
+        for line in lines:
+            if skip_next:
+                skip_next = False
+                continue
+                
+            if 'sys.path.insert' in line:
+                skip_next = True
+                continue
+            
+            # Skip import sys if it was only for path manipulation
+            if line.strip() == 'import sys':
+                # Check if sys is used elsewhere
+                remaining_code = '\n'.join(lines[lines.index(line)+1:])
+                if 'sys.' not in remaining_code or only_sys_path_usage(remaining_code):
+                    continue
+            
+            cleaned_lines.append(line)
         
-        # Clean up topic name
-        if topic:
-            topic = topic.replace('_', ' ').replace('-', ' ').title()
+        code = '\n'.join(cleaned_lines)
         
-        # Generate description
-        desc_parts = []
+        # Add necessary imports if not present
+        if 'from manim import *' not in code:
+            code = 'from manim import *\n\n' + code
         
-        # Add topic context
-        if topic:
-            desc_parts.append(f"Create a Manim animation for {topic}")
-        else:
-            desc_parts.append("Create a Manim animation")
+        # Handle local imports from Reducible's common modules
+        code = code.replace('from reducible_colors import *', 
+                          '# Note: Custom colors from Reducible theme')
+        code = code.replace('from functions import *', 
+                          '# Note: Helper functions from Reducible')
+        code = code.replace('from classes import *', 
+                          '# Note: Custom classes from Reducible')
         
-        # Add class name context
-        # Convert CamelCase to readable format
-        readable_name = re.sub(r'(?<!^)(?=[A-Z])', ' ', class_name)
-        desc_parts.append(f"that demonstrates {readable_name}")
-        
-        # Add year context if available
-        if year:
-            desc_parts.append(f"(from Reducible's {year} video series)")
-        
-        return ' '.join(desc_parts) + '.'
+        return code.strip()
     
     def extract(self) -> Iterator[Dict[str, Any]]:
-        """Extract samples from Reducible repository."""
-        # Check if we have a pre-extracted JSONL file first
-        jsonl_file = Path("data_reducible.jsonl")
-        if jsonl_file.exists():
-            logger.info(f"Using pre-extracted data from {jsonl_file}")
-            with open(jsonl_file, 'r', encoding='utf-8') as f:
-                for line in f:
-                    data = json.loads(line.strip())
-                    # Extract from conversation format
-                    if "conversations" in data and len(data["conversations"]) >= 3:
-                        description = data["conversations"][1]["value"]
-                        code = data["conversations"][2]["value"]
-                        # Clean code from markdown
-                        if code.startswith("```python"):
-                            code = code.split("```python")[1].split("```")[0].strip()
-                        
-                        yield {
-                            "description": description,
-                            "code": code,
-                            "source": "reducible",
-                            "metadata": data.get("metadata", {})
-                        }
-            return
-        
+        """Extract ManimCE samples from Reducible repository."""
         if not self.repo_path.exists():
-            logger.error(f"Repository not found: {self.repo_path}")
+            logger.error(f"Repository path does not exist: {self.repo_path}")
             return
         
-        # Find all Python files in year directories
-        year_dirs = ['2019', '2020', '2021', '2022']
-        python_files = []
+        # Only look in directories with ManimCE content
+        manim_ce_dirs = [
+            self.repo_path / "2022",  # All 2022 content uses ManimCE
+            self.repo_path / "2021" / "MarchingSquares"  # This specific 2021 video uses ManimCE
+        ]
         
-        for year in year_dirs:
-            year_path = self.repo_path / year
-            if year_path.exists():
-                python_files.extend(year_path.rglob('*.py'))
+        total_scenes = 0
         
-        # Process each file
-        for file_path in python_files:
-            # Skip test files and __init__.py
-            if 'test' in file_path.name.lower() or file_path.name == '__init__.py':
+        for search_dir in manim_ce_dirs:
+            if not search_dir.exists():
+                logger.warning(f"Directory not found: {search_dir}")
                 continue
-            
-            # Skip manimlib directory
-            if 'manimlib' in file_path.parts:
-                continue
-            
-            scenes = self._extract_scenes_from_file(file_path)
-            
-            for class_name, class_code in scenes:
-                # Check if we need imports
-                full_code = class_code
-                if 'from manim import' not in class_code and 'import' not in class_code:
-                    # Add default imports
-                    full_code = "from manim import *\n\n" + class_code
                 
-                # Generate description
-                description = self._generate_description(class_name, file_path)
+            # Find all Python files
+            py_files = list(search_dir.rglob("*.py"))
+            
+            for py_file in py_files:
+                # Skip test files, setup files, and non-scene files
+                if any(skip in py_file.name.lower() for skip in 
+                       ['test', 'setup', '__pycache__', 'config', 'utils', 'solver_utils', 'lz77']):
+                    continue
                 
-                yield {
-                    "description": description,
-                    "code": full_code,
-                    "metadata": {
-                        "source_file": str(file_path.relative_to(self.repo_path)),
-                        "class_name": class_name,
-                        "year": file_path.parts[-3] if len(file_path.parts) > 2 else None,
-                        "topic": file_path.parts[-2] if len(file_path.parts) > 1 else None,
-                        "needs_description_update": True  # Mark for LLM enhancement later
+                # Verify it's actually ManimCE
+                if not self._is_manim_ce_file(py_file):
+                    logger.debug(f"Skipping non-ManimCE file: {py_file}")
+                    continue
+                
+                # Extract scenes from this file
+                scenes = self._extract_scenes_from_file(py_file)
+                
+                for scene_name, scene_code in scenes:
+                    total_scenes += 1
+                    
+                    # Clean the code
+                    cleaned_code = self._clean_code(scene_code, py_file)
+                    
+                    # Generate description based on file path and scene name
+                    relative_path = py_file.relative_to(self.repo_path)
+                    video_topic = str(relative_path.parts[1]) if len(relative_path.parts) > 1 else "General"
+                    
+                    description = f"Animation of {scene_name} from Reducible's {video_topic} video"
+                    
+                    # Special handling for known topics
+                    topic_descriptions = {
+                        "PageRank": "PageRank algorithm visualization",
+                        "PNGvsQOI": "PNG vs QOI image compression comparison",
+                        "JPEGImageCompression": "JPEG image compression visualization",
+                        "TSPProblem": "Traveling Salesman Problem visualization",
+                        "MarchingSquares": "Marching Squares algorithm visualization"
                     }
-                }
+                    
+                    if video_topic in topic_descriptions:
+                        description = f"{topic_descriptions[video_topic]} - {scene_name}"
+                    
+                    yield {
+                        "description": description,
+                        "code": cleaned_code,
+                        "source": self.source_id,
+                        "metadata": {
+                            "file": str(relative_path),
+                            "scene_name": scene_name,
+                            "year": relative_path.parts[0] if relative_path.parts else "unknown",
+                            "topic": video_topic
+                        }
+                    }
+        
+        logger.info(f"Extracted {total_scenes} ManimCE scenes from Reducible")
+
+
+def only_sys_path_usage(code: str) -> bool:
+    """Check if sys is only used for path manipulation."""
+    sys_usages = re.findall(r'sys\.\w+', code)
+    return all('path' in usage for usage in sys_usages)

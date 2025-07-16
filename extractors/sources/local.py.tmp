@@ -1,0 +1,219 @@
+"""Local file dataset extractors."""
+
+import json
+import logging
+import re
+from pathlib import Path
+from typing import Iterator, Dict, Any, Optional
+
+from ..base import BaseExtractor
+from ..registry import register_extractor
+
+logger = logging.getLogger(__name__)
+
+
+@register_extractor
+class Dan4LifeAoC2024Extractor(BaseExtractor):
+    """Extractor for Dan4Life's Advent of Code 2024 dataset."""
+    
+    source_id = "dan4life_aoc2024"
+    source_name = "Dan4Life AoC 2024 Videos"
+    priority = 2  # Good quality but limited samples
+    
+    def _validate_config(self) -> None:
+        """Validate configuration."""
+        self.file_path = Path(self.config.get("file", "data/data_dan4life/dan4life_aoc2024.jsonl"))
+        if not self.file_path.exists():
+            logger.warning(f"Data file not found: {self.file_path}")
+    
+    def estimate_sample_count(self) -> Optional[int]:
+        """Return estimated number of samples."""
+        return 24
+    
+    def extract(self) -> Iterator[Dict[str, Any]]:
+        """Extract samples from Dan4Life dataset."""
+        if not self.file_path.exists():
+            logger.error(f"Data file not found: {self.file_path}")
+            return
+        
+        # Track seen class names to resolve conflicts
+        seen_class_names = set()
+        
+        try:
+            with open(self.file_path, 'r', encoding='utf-8') as f:
+                for line_num, line in enumerate(f):
+                    try:
+                        item = json.loads(line.strip())
+                        
+                        # Extract from conversation format
+                        conversations = item.get("conversations", [])
+                        if len(conversations) >= 3:
+                            description = conversations[1].get("value", "")
+                            code = conversations[2].get("value", "")
+                            
+                            # Clean code from markdown if needed
+                            if code.startswith("```python"):
+                                code = code.split("```python")[1].split("```")[0].strip()
+                            
+                            # Fix class name conflicts
+                            code = self._resolve_class_name_conflicts(code, seen_class_names)
+                            
+                            yield {
+                                "description": description,
+                                "code": code,
+                                "metadata": {
+                                    "source_file": str(self.file_path),
+                                    "line_number": line_num,
+                                    "day": item.get("metadata", {}).get("day"),
+                                    "version": item.get("metadata", {}).get("version")
+                                }
+                            }
+                    
+                    except Exception as e:
+                        logger.warning(f"Error processing line {line_num}: {e}")
+                        continue
+                        
+        except Exception as e:
+            logger.error(f"Error reading file {self.file_path}: {e}")
+            return
+    
+    def _resolve_class_name_conflicts(self, code: str, seen_class_names: set) -> str:
+        """Resolve class name conflicts by appending version numbers."""
+        # Find scene class definition
+        class_match = re.search(r'class\s+(\w+)\s*\([^)]*Scene[^)]*\)', code)
+        if not class_match:
+            return code
+            
+        original_class_name = class_match.group(1)
+        
+        # If no conflict, just track it
+        if original_class_name not in seen_class_names:
+            seen_class_names.add(original_class_name)
+            return code
+        
+        # Find unique name by appending version number
+        version = 2
+        new_class_name = f"{original_class_name}V{version}"
+        while new_class_name in seen_class_names:
+            version += 1
+            new_class_name = f"{original_class_name}V{version}"
+        
+        seen_class_names.add(new_class_name)
+        
+        # Replace class name in code
+        updated_code = re.sub(
+            r'class\s+' + re.escape(original_class_name) + r'\s*\(',
+            f'class {new_class_name}(',
+            code
+        )
+        
+        logger.info(f"Resolved class name conflict: {original_class_name} -> {new_class_name}")
+        return updated_code
+
+
+@register_extractor
+class SzymonOzogExtractor(BaseExtractor):
+    """Extractor for Szymon Ozog's dataset."""
+    
+    source_id = "szymon_ozog"
+    source_name = "Szymon Ozog Manim Examples"
+    priority = 2
+    
+    def _validate_config(self) -> None:
+        """Validate configuration."""
+        self.file_path = Path(self.config.get("file", "data/data_szymon_ozog/szymon_ozog_processed.jsonl"))
+        if not self.file_path.exists():
+            logger.warning(f"Data file not found: {self.file_path}")
+    
+    def estimate_sample_count(self) -> Optional[int]:
+        """Return estimated number of samples."""
+        return 29
+    
+    def extract(self) -> Iterator[Dict[str, Any]]:
+        """Extract samples from Szymon Ozog dataset."""
+        if not self.file_path.exists():
+            logger.error(f"Data file not found: {self.file_path}")
+            return
+        
+        try:
+            with open(self.file_path, 'r', encoding='utf-8') as f:
+                for line_num, line in enumerate(f):
+                    try:
+                        item = json.loads(line.strip())
+                        
+                        # Extract from conversation format
+                        conversations = item.get("conversations", [])
+                        if len(conversations) >= 3:
+                            description = conversations[1].get("value", "")
+                            code = conversations[2].get("value", "")
+                            
+                            # Clean code from markdown if needed
+                            if code.startswith("```python"):
+                                code = code.split("```python")[1].split("```")[0].strip()
+                            
+                            # Fix missing dependencies in szymon_ozog samples
+                            code = self._fix_szymon_dependencies(code)
+                            
+                            yield {
+                                "description": description,
+                                "code": code,
+                                "metadata": {
+                                    "source_file": str(self.file_path),
+                                    "line_number": line_num
+                                }
+                            }
+                    
+                    except Exception as e:
+                        logger.warning(f"Error processing line {line_num}: {e}")
+                        continue
+                        
+        except Exception as e:
+            logger.error(f"Error reading file {self.file_path}: {e}")
+            return
+    
+    def _fix_szymon_dependencies(self, code: str) -> str:
+        """Add actual implementations for missing dependencies in szymon_ozog samples."""
+        # Check if sample needs fixing
+        needs_toc = 'TOC(' in code or 'TOC()' in code
+        needs_bsc = 'BSC(' in code or 'BSC()' in code
+        needs_entropy = any(func in code for func in ['HX(', 'HY(', 'HXY(', 'make_probs(', 'EntropyBoxRepresentation'])
+        needs_binary = 'create_binary_digits' in code
+        needs_entry = 'Entry(' in code
+        
+        if not any([needs_toc, needs_bsc, needs_entropy, needs_binary, needs_entry]):
+            return code  # No fixes needed
+        
+        # Remove VoiceoverScene dependencies that cause issues
+        code = re.sub(r'class\s+(\w+)\s*\(\s*VoiceoverScene\s*\):', r'class \1(Scene):', code)
+        code = re.sub(r'self\.set_speech_service\([^)]*\)', '', code)
+        
+        # Fix simple missing imports instead of adding massive implementations
+        fixes_added = False
+        
+        if needs_entry and 'class Entry:' not in code:
+            code = 'from manim import *\n\nclass Entry:\n    def __init__(self, main_tex, subtexts=[]):\n        self.main = Tex(main_tex)\n        self.list = BulletedList(*subtexts)\n\n' + code
+            fixes_added = True
+            
+        if needs_toc and 'class TOC:' not in code:
+            toc_impl = '''class TOC:
+    def __init__(self, episode=0):
+        self.header = Tex("Information Theory", font_size=85)
+        self.entries = []
+
+'''
+            code = code.replace('from manim import *\n', 'from manim import *\n\n' + toc_impl)
+            fixes_added = True
+            
+        if needs_binary and 'def to_binary' not in code:
+            binary_impl = '''def to_binary(i, length):
+    return bin(i)[2:].zfill(length)
+
+def create_binary_digits(length):
+    return [to_binary(i, length) for i in range(2**length)]
+
+'''
+            code = code.replace('from manim import *\n', 'from manim import *\n\n' + binary_impl)
+            fixes_added = True
+        
+        # Return the fixed code (much smaller and syntactically correct)
+        return code

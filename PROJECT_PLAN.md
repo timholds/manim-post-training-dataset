@@ -15,10 +15,11 @@ Construct a perfect manim fine-tuning dataset from multiple sources with high-qu
 - [x] **Szymon Ozog** - 29 samples, 15 after deduplication (GitHub)
   - Information Theory: 10 scenes
   - GPU Programming: 19 scenes
-- [x] **Reducible** - 250 samples (GitHub) ✅ NEW!
+- [x] **Reducible** - 89 samples (GitHub) ✅ ManimCE only!
   - Computer Science animations from popular YouTube channel
-  - Topics: algorithms, data structures, FFT, compression, graph theory
-  - Years covered: 2019-2022
+  - Topics: PageRank, PNG/QOI compression, JPEG compression, TSP, Marching Squares
+  - Filtered to include only ManimCE content (2022 videos + MarchingSquares from 2021)
+  - Excludes all ManimGL content from 2019-2020 and most of 2021
 
 #### Infrastructure
 - [x] Unified conversation format implementation

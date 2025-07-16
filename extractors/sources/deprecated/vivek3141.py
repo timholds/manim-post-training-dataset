@@ -1,4 +1,16 @@
-"""Vivek3141 YouTube channel dataset extractor."""
+"""Vivek3141 YouTube channel dataset extractor.
+
+WARNING: This source is EXCLUDED in quality_config.json because:
+1. The repository is 97% ManimGL code (35/36 animation files)
+2. This extractor has a critical bug: it extracts classes without their imports,
+   then incorrectly adds ManimCE imports to ~40% of them
+3. This creates non-functional code mixing ManimGL syntax with ManimCE imports
+4. Results in 99.7% rendering failure rate
+
+To use this source, it would need to be rewritten to either:
+- Preserve original ManimGL imports and convert everything to ManimCE
+- Extract classes with their original imports intact
+"""
 
 import ast
 import logging

@@ -53,7 +53,7 @@ This document outlines the data quality standards and validation framework for t
 - **bespoke_manim**: Professional dataset, maintain standards
 - **manimbench**: Curated examples, high quality expected
 - **manim_ce_examples**: Official examples, exemplary code
-- **reducible**: Educational content, clarity important
+- **reducible**: Educational content, clarity important (ManimCE content only - 2022 videos + MarchingSquares)
 
 ### Medium-Quality Sources (Lenient Validation)
 - **vivek3141**: Older Manim style, auto-generated descriptions

@@ -66,6 +66,7 @@ class QualityValidator:
         issues.extend(self._validate_code_structure(code, merged_config))
         issues.extend(self._validate_code_quality(code, merged_config))
         issues.extend(self._validate_code_description_alignment(description, code, merged_config))
+        issues.extend(self._validate_code_executability(code, merged_config))
         
         # Determine if sample passes
         critical_issues = [i for i in issues if i.startswith("[CRITICAL]")]
@@ -211,7 +212,8 @@ class QualityValidator:
         valid_scene_classes = {
             'Scene', 'ThreeDScene', 'VoiceoverScene', 'MovingCameraScene',
             'ZoomedScene', 'InteractiveScene', 'SampleSpaceScene', 'LiveStreamingScene',
-            'GraphScene', 'LinearTransformationScene', 'VectorScene', 'SpecialThreeDScene'
+            'GraphScene', 'LinearTransformationScene', 'VectorScene', 'SpecialThreeDScene',
+            'SpaceScene'  # From manim-physics
         }
         
         # Build a map of all classes for multi-level inheritance checking
@@ -460,6 +462,105 @@ class QualityValidator:
                 if not any(pattern in code for pattern in code_patterns):
                     issues.append(f"[MEDIUM] Description mentions '{shape}' but code doesn't implement it")
                     break  # Only report first mismatch to avoid noise
+        
+        return issues
+    
+    def _validate_code_executability(self, code: str, config: Dict[str, Any]) -> List[str]:
+        """
+        Validate that the code can be parsed and potentially executed.
+        Tests if the transformed code is syntactically valid.
+        """
+        issues = []
+        
+        # Skip if executability check is disabled
+        if not config.get("check_executability", True):
+            return issues
+        
+        # Test 1: Basic syntax check
+        try:
+            ast.parse(code)
+        except SyntaxError as e:
+            issues.append(f"[CRITICAL] Syntax error in code: {e}")
+            return issues  # No point in further checks if syntax is broken
+        except Exception as e:
+            issues.append(f"[CRITICAL] Failed to parse code: {e}")
+            return issues
+        
+        # Test 2: Check for unescaped string literals that would cause warnings
+        try:
+            # Look for potential escape sequence issues
+            if re.search(r'(MathTex|Text|Tex)\s*\(\s*["\'][^"\']*\\[^\\r][^"\']*["\']', code):
+                issues.append("[MEDIUM] Potential invalid escape sequences in TeX strings")
+        except Exception:
+            pass
+        
+        # Test 3: Check for common runtime issues that can be statically detected
+        runtime_issues = []
+        
+        # Check for undefined variables (simplified check)
+        try:
+            tree = ast.parse(code)
+            
+            # Find all variable names used
+            used_names = set()
+            defined_names = set()
+            
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Name):
+                    if isinstance(node.ctx, ast.Load):
+                        used_names.add(node.id)
+                    elif isinstance(node.ctx, ast.Store):
+                        defined_names.add(node.id)
+                elif isinstance(node, ast.FunctionDef):
+                    defined_names.add(node.name)
+                elif isinstance(node, ast.ClassDef):
+                    defined_names.add(node.name)
+            
+            # Common built-ins and manim imports that are usually available
+            common_builtins = {
+                'len', 'range', 'enumerate', 'zip', 'sum', 'min', 'max',
+                'print', 'str', 'int', 'float', 'bool', 'list', 'dict',
+                'True', 'False', 'None', 'self'
+            }
+            
+            common_manim = {
+                'Scene', 'Text', 'MathTex', 'Tex', 'Circle', 'Square', 'Line',
+                'Arrow', 'Dot', 'UP', 'DOWN', 'LEFT', 'RIGHT', 'WHITE', 'BLACK',
+                'RED', 'GREEN', 'BLUE', 'YELLOW', 'ORANGE', 'PURPLE', 'PI', 'TAU',
+                'Create', 'Write', 'FadeIn', 'FadeOut', 'Transform', 'ReplacementTransform',
+                'Axes', 'NumberPlane', 'Graph', 'Vector', 'Matrix', 'Polygon'
+            }
+            
+            # Check for potentially undefined variables
+            undefined = used_names - defined_names - common_builtins - common_manim
+            if undefined:
+                # Filter out likely false positives
+                likely_undefined = [name for name in undefined 
+                                  if not name.startswith('_') and 
+                                  not name.isupper() and  # Likely constants
+                                  len(name) > 1]
+                if likely_undefined:
+                    issues.append(f"[MEDIUM] Potentially undefined variables: {', '.join(list(likely_undefined)[:5])}")
+        
+        except Exception:
+            # If static analysis fails, don't add issues
+            pass
+        
+        # Test 4: Check for missing required methods in Scene classes
+        try:
+            if 'class' in code and 'Scene' in code:
+                tree = ast.parse(code)
+                has_construct = False
+                
+                for node in ast.walk(tree):
+                    if isinstance(node, ast.FunctionDef) and node.name == 'construct':
+                        has_construct = True
+                        break
+                
+                if not has_construct:
+                    issues.append("[HIGH] Scene class missing construct method")
+        except Exception:
+            pass
         
         return issues
     

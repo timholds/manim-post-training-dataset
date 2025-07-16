@@ -29,6 +29,14 @@ class BaseExtractor(ABC):
         self.enable_quality_validation = self.config.get("enable_quality_validation", True)
         self.quality_strict_mode = self.config.get("quality_strict_mode", True)
         self._quality_validator = None
+        
+        # Track extraction statistics
+        self.extraction_stats = {
+            "total_extracted": 0,
+            "passed_validation": 0,
+            "failed_basic_validation": 0,
+            "failed_quality_validation": 0
+        }
     
     @abstractmethod
     def _validate_config(self) -> None:
@@ -58,9 +66,16 @@ class BaseExtractor(ABC):
         Transform a raw sample into standardized format.
         Override this for custom transformations.
         """
+        # Get the code
+        code = sample.get("code", "")
+        
+        # Animation timing fix disabled - we want to preserve original behavior
+        # for training data authenticity
+        pass
+        
         return {
             "description": sample.get("description", ""),
-            "code": sample.get("code", ""),
+            "code": code,
             "source": self.source_id,
             "metadata": sample.get("metadata", {})
         }
@@ -90,10 +105,12 @@ class BaseExtractor(ABC):
             )
         
         for sample in self.extract():
+            self.extraction_stats["total_extracted"] += 1
             transformed = self.transform_sample(sample)
             
             # Basic validation
             if not self.validate_sample(transformed):
+                self.extraction_stats["failed_basic_validation"] += 1
                 logger.debug(f"Skipped invalid sample from {self.source_id}")
                 continue
             
@@ -104,9 +121,11 @@ class BaseExtractor(ABC):
                     source_id=self.source_id
                 )
                 if not is_valid:
+                    self.extraction_stats["failed_quality_validation"] += 1
                     logger.debug(f"Quality validation failed for {self.source_id}: {issues[:2]}")
                     continue
             
+            self.extraction_stats["passed_validation"] += 1
             yield transformed
         
         # Log quality report if validation was used

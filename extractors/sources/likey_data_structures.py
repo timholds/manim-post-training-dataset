@@ -28,7 +28,7 @@ class LikeyDataStructuresExtractor(BaseExtractor):
     def _validate_config(self) -> None:
         """Validate configuration."""
         self.repo_url = self.config.get("repo_url", "https://github.com/Likey00/manim-data-structures.git")
-        self.repo_path = Path(self.config.get("repo_path", "Likey00-manim-data-structures"))
+        self.repo_path = Path(self.config.get("repo_path", "data/Likey00-manim-data-structures"))
         self.cache_dir = Path(self.config.get("cache_dir", ".cache"))
     
     def estimate_sample_count(self) -> Optional[int]:
@@ -138,10 +138,14 @@ class LikeyDataStructuresExtractor(BaseExtractor):
     def _bundle_code_with_dependencies(self, scene_code: str, utility_files: Dict[str, str]) -> str:
         """Bundle Scene code with its dependencies."""
         # Start with standard Manim import
-        bundled_code = "from manim import *\nimport random\n\n"
+        bundled_code = "from manim import *\nfrom random import sample\n\n"
         
         # Add utility code, removing their imports and converting to inline functions
         for filename, content in utility_files.items():
+            # Special handling for bst.py to fix duplicate __init__ and incomplete delete
+            if filename == "bst.py":
+                content = self._fix_bst_code(content)
+            
             # Remove imports from utility files
             lines = content.split('\n')
             filtered_lines = []
@@ -167,6 +171,60 @@ class LikeyDataStructuresExtractor(BaseExtractor):
         bundled_code += scene_code
         
         return bundled_code
+    
+    def _fix_bst_code(self, content: str) -> str:
+        """Fix the BST class issues: merge duplicate __init__ and remove incomplete delete method."""
+        lines = content.split('\n')
+        fixed_lines = []
+        in_delete = False
+        skip_first_init = False
+        
+        for i, line in enumerate(lines):
+            # Skip the first parameterless __init__ method
+            if "def __init__(self):" in line and "BST" in lines[i-2]:
+                skip_first_init = True
+                continue
+            
+            # Skip the body of first init
+            if skip_first_init:
+                if line.strip() == "self.root = None":
+                    continue
+                else:
+                    skip_first_init = False
+            
+            # Fix the second __init__ to be the only one
+            if "def __init__(self, keys):" in line:
+                # Change it to accept optional keys parameter
+                fixed_lines.append("    def __init__(self, keys=None):")
+                fixed_lines.append("        self.root = None")
+                fixed_lines.append("        if keys:")
+                fixed_lines.append("            self.insert(keys)")
+                # Skip the original body
+                continue
+            
+            # Skip original body of second init
+            if i > 0 and "def __init__(self, keys):" in lines[i-1]:
+                continue
+            if i > 1 and "def __init__(self, keys):" in lines[i-2] and line.strip().startswith("self."):
+                continue
+            
+            # Remove incomplete delete method
+            if "def delete(self, key):" in line:
+                in_delete = True
+                continue
+            
+            # Skip delete method body
+            if in_delete:
+                # Check if we've reached the end of the class or another method
+                if line.strip() and not line.startswith(' '):
+                    in_delete = False
+                    fixed_lines.append(line)
+                else:
+                    continue
+            else:
+                fixed_lines.append(line)
+        
+        return '\n'.join(fixed_lines)
     
     def _generate_description(self, class_name: str, docstring: str) -> str:
         """Generate description based on class name and docstring."""

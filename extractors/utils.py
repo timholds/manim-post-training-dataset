@@ -31,27 +31,8 @@ def fix_code_syntax_issues(code: str) -> str:
     if code.endswith('...'):
         code = code[:-3].rstrip()
     
-    # 2b. Handle truncated code that ends with incomplete statements
-    # Look for lines that end with : but have no following indented content
-    lines = code.split('\n')
-    fixed_lines = []
-    for i, line in enumerate(lines):
-        fixed_lines.append(line)
-        # If line ends with : and is last line or next line is not indented, add pass
-        if line.rstrip().endswith(':') and (i == len(lines) - 1 or 
-                                            (i + 1 < len(lines) and not lines[i + 1].strip().startswith(' ') and lines[i + 1].strip() != '')):
-            # Add appropriate indentation + pass
-            if 'def ' in line or 'class ' in line:
-                if 'class ' in line:
-                    fixed_lines.append('    pass')
-                else:  # def
-                    fixed_lines.append('        pass')
-            elif 'for ' in line or 'if ' in line or 'while ' in line or 'try:' in line or 'except' in line:
-                # These need extra indentation
-                current_indent = len(line) - len(line.lstrip())
-                fixed_lines.append(' ' * (current_indent + 4) + 'pass')
-    
-    code = '\n'.join(fixed_lines)
+    # Note: Removed automatic pass-adding logic as it was causing more problems than it solved
+    # If code is genuinely truncated, it should fail validation rather than be "fixed" incorrectly
     
     # 3. Fix single-line compression - look for missing newlines
     # This is the most common issue: "from manim import * class MyScene(Scene): def construct(self): ..."

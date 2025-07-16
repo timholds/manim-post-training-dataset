@@ -91,3 +91,19 @@ See GEMINI.md for specific commands and examples.
   - LLM descriptions will be generated later
 - Alternative: Use `thanks_dataset_cleaned` for pre-cleaned version (removes problematic entries)
 - See `docs/THANKS_DATASET_FIX_REPORT.md` and `THANKS_DATASET_VERIFICATION.md` for full analysis
+
+### Deprecated Sources
+
+The following ManimGL sources have been moved to `extractors/sources/deprecated/`:
+
+#### vivek3141 & vivek3141_dl
+- **DEPRECATED**: Both sources use ManimGL (old 3b1b version), not ManimCE
+- vivek3141: 35 of 36 animation files use `from manimlib.imports import *`
+- The extractor had a critical bug: it extracted classes without imports, then incorrectly added ManimCE imports to ~40% of them
+- This created non-functional frankenstein code mixing ManimGL code with ManimCE imports
+- Results in 99.7% rendering failure rate
+- Files moved to deprecated folder to keep dataset pure ManimCE
+
+#### reducible
+- **FILTERED**: The extractor has been updated to only include ManimCE content (2022+ videos)
+- Older ManimGL content (2019-2021) is automatically filtered out by the extractor

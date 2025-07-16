@@ -7,6 +7,7 @@ Includes optional rendering validation to ensure code actually produces videos.
 import json
 import logging
 import random
+import shutil
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
 from collections import defaultdict
@@ -17,6 +18,7 @@ from extractors import get_registry
 from extractors.utils import create_conversation, normalize_description, augment_prompt, normalize_code, calculate_similarity
 from extractors.quality_validator import QualityValidator, QualityFilter
 from extractors.rendering_validator import RenderingValidator, BatchRenderValidator
+from extractors.code_fixer import fix_dataset_codes
 from extractors.constants import PLACEHOLDER_DESCRIPTION
 from analyze_code_length_distribution import analyze_code_lengths
 
@@ -204,11 +206,30 @@ def prepare_datasets(
     rendering_fast_mode: bool = False,  # Fast mode for rendering validation
     save_videos_dir: Optional[str] = None,
     llm_fill_descriptions: bool = False,
-    llm_config: Optional[Dict] = None
+    llm_config: Optional[Dict] = None,
+    fix_code: bool = False,
+    rendering_use_cache: bool = True
 ):
     """Prepare datasets using the plugin-based extractor system."""
     output_path = Path(output_dir)
+    
+    # Clean up existing directory if it exists
+    if output_path.exists():
+        logger.info(f"🧹 Cleaning existing output directory: {output_path}")
+        shutil.rmtree(output_path)
+    
     output_path.mkdir(parents=True, exist_ok=True)
+    
+    # Initialize pipeline tracking
+    pipeline_tracking = defaultdict(lambda: {
+        'initial_extraction': 0,
+        'after_quality': 0,
+        'after_deduplication': 0,
+        'after_code_fixing': 0,
+        'after_rendering': 0,
+        'final_train': 0,
+        'final_test': 0
+    })
     
     # Load quality configuration if provided
     quality_config = {}
@@ -259,7 +280,15 @@ def prepare_datasets(
             
             # Apply source-specific overrides
             if source_id in quality_config.get("source_overrides", {}):
-                extractor_config.update(quality_config["source_overrides"][source_id])
+                source_overrides = quality_config["source_overrides"][source_id]
+                
+                # Check if source should be excluded
+                if source_overrides.get("exclude_source", False):
+                    reason = source_overrides.get("exclude_reason", "Excluded by configuration")
+                    logger.warning(f"  Skipping {source_id}: {reason}")
+                    continue
+                    
+                extractor_config.update(source_overrides)
             
             # Add reference to full quality config for the validator
             extractor_config["_quality_config"] = quality_config
@@ -271,6 +300,11 @@ def prepare_datasets(
             # Extract samples
             samples = list(extractor)
             all_data.extend(samples)
+            
+            # Track initial extraction count (before any validation)
+            pipeline_tracking[source_id]['initial_extraction'] = extractor.extraction_stats['total_extracted']
+            # Track how many passed validation
+            pipeline_tracking[source_id]['after_quality'] = extractor.extraction_stats['passed_validation']
             
             # Collect stats for visualization
             lengths = [len(sample['code']) for sample in samples]
@@ -286,10 +320,21 @@ def prepare_datasets(
             dataset_stats[source_id] = {
                 "samples": len(samples),
                 "expected": extractor.estimate_sample_count(),
-                "name": extractor.source_name
+                "name": extractor.source_name,
+                "extraction_stats": extractor.extraction_stats
             }
             
-            logger.info(f"  {source_id}: {len(samples):,} samples")
+            # Show detailed extraction info
+            if extractor.enable_quality_validation:
+                quality_removed = extractor.extraction_stats['failed_quality_validation']
+                total_before = extractor.extraction_stats['total_extracted']
+                if total_before > 0:
+                    removal_pct = (quality_removed / total_before) * 100
+                    logger.info(f"\n  {source_id}: {len(samples):,} samples (quality removed {quality_removed:,} = {removal_pct:.1f}%)")
+                else:
+                    logger.info(f"\n  {source_id}: {len(samples):,} samples")
+            else:
+                logger.info(f"\n  {source_id}: {len(samples):,} samples")
             
         except Exception as e:
             logger.error(f"Failed to process {source_id}: {e}")
@@ -301,23 +346,47 @@ def prepare_datasets(
     
     logger.info(f"Total: {len(all_data):,} samples collected")
     
-    # Generate data sources visualization  
-    try:
-        viz_path = "data_sources.png"
-        analyze_code_lengths(source_visualization_data, viz_path, show_plot=False)
-        logger.info(f"📊 Visualization saved: {viz_path}")
-    except Exception as e:
-        logger.warning(f"Failed to generate visualization: {e}")
+    # Note: Quality validation tracking is now done inside the extractor loop above
     
     # Apply deduplication if requested
     dedup_stats = None
     if deduplicate:
         logger.info(f"\n🔍 Deduplicating...")
         all_data, dedup_stats = deduplicate_data(all_data, source_priorities)
+        
+        # Track after deduplication
+        for source_id in pipeline_tracking:
+            pipeline_tracking[source_id]['after_deduplication'] = 0
+        for sample in all_data:
+            source = sample.get('source', 'unknown')
+            if source in pipeline_tracking:
+                pipeline_tracking[source]['after_deduplication'] += 1
+    else:
+        # If no deduplication, counts stay the same
+        for source_id in pipeline_tracking:
+            pipeline_tracking[source_id]['after_deduplication'] = pipeline_tracking[source_id]['after_quality']
     
     # Fill placeholder descriptions with LLM if requested
     if llm_fill_descriptions:
         all_data = fill_placeholder_descriptions(all_data, llm_config)
+    
+    # Apply conservative code fixes if requested
+    fix_stats = None
+    if fix_code:
+        logger.info(f"\n🔧 Applying conservative code fixes...")
+        all_data, fix_stats = fix_dataset_codes(all_data, aggressive_mode=False)
+        
+        # Track after code fixing
+        for source_id in pipeline_tracking:
+            pipeline_tracking[source_id]['after_code_fixing'] = 0
+        for sample in all_data:
+            source = sample.get('source', 'unknown')
+            if source in pipeline_tracking:
+                pipeline_tracking[source]['after_code_fixing'] += 1
+    else:
+        # If no code fixing, counts stay the same
+        for source_id in pipeline_tracking:
+            pipeline_tracking[source_id]['after_code_fixing'] = pipeline_tracking[source_id]['after_deduplication']
     
     # Apply rendering validation if requested
     rendering_stats = None
@@ -330,7 +399,8 @@ def prepare_datasets(
             fix_common_issues=rendering_fix_issues,
             dry_run=rendering_dry_run,
             save_videos_dir=save_videos_dir,
-            fast_mode=rendering_fast_mode
+            fast_mode=rendering_fast_mode,
+            use_cache=rendering_use_cache
         )
         batch_validator = BatchRenderValidator(render_validator, dry_run=rendering_dry_run)
         
@@ -341,11 +411,23 @@ def prepare_datasets(
             pbar.n = current
             pbar.refresh()
         
-        # Validate all samples
-        valid_samples, invalid_samples = batch_validator.validate_dataset(
-            all_data, 
-            progress_callback=progress_callback
-        )
+        # Temporarily suppress all INFO logs to avoid interfering with tqdm
+        import logging as log_module
+        
+        # Get the root logger and set it to WARNING level temporarily
+        root_logger = log_module.getLogger()
+        original_root_level = root_logger.level
+        root_logger.setLevel(log_module.WARNING)
+        
+        try:
+            # Validate all samples
+            valid_samples, invalid_samples = batch_validator.validate_dataset(
+                all_data, 
+                progress_callback=progress_callback
+            )
+        finally:
+            # Restore original logging level
+            root_logger.setLevel(original_root_level)
         
         pbar.close()
         
@@ -370,11 +452,70 @@ def prepare_datasets(
         # Update all_data to only valid samples
         all_data = valid_samples
         rendering_stats = rendering_report
+        
+        # Track after rendering validation
+        for source_id in pipeline_tracking:
+            pipeline_tracking[source_id]['after_rendering'] = 0
+        for sample in all_data:
+            source = sample.get('source', 'unknown')
+            if source in pipeline_tracking:
+                pipeline_tracking[source]['after_rendering'] += 1
+                
+        # Also track rendering failures by source
+        rendering_failures_by_source = defaultdict(int)
+        for sample in invalid_samples:
+            source = sample.get('source', 'unknown')
+            rendering_failures_by_source[source] += 1
+        rendering_stats['failures_by_source'] = dict(rendering_failures_by_source)
+    else:
+        # If no rendering validation, counts stay the same
+        for source_id in pipeline_tracking:
+            pipeline_tracking[source_id]['after_rendering'] = pipeline_tracking[source_id]['after_code_fixing']
     
-    # Split into train/test
-    logger.info(f"\n✂️ Splitting: ", end="")
+    # Generate data sources visualization AFTER all filtering
+    # Update source_visualization_data with final counts
+    final_visualization_data = {}
+    for source_id in source_visualization_data:
+        # Get samples that survived all filtering
+        final_samples = [s for s in all_data if s.get('source') == source_id]
+        if final_samples:
+            lengths = [len(sample['code']) for sample in final_samples]
+            desc_lengths = [len(sample.get('description', '')) for sample in final_samples]
+            final_visualization_data[source_id] = {
+                'lengths': lengths,
+                'desc_lengths': desc_lengths,
+                'count': len(lengths),
+                'name': source_visualization_data[source_id]['name'],
+                'priority': source_visualization_data[source_id]['priority']
+            }
+    
+    # Generate the visualization with final data
+    try:
+        viz_path = "data_sources.png"
+        analyze_code_lengths(final_visualization_data, viz_path, show_plot=False)
+        logger.info(f"📊 Visualization saved: {viz_path} (reflects final dataset after all filtering)")
+    except Exception as e:
+        logger.warning(f"Failed to generate visualization: {e}")
+    
+    # Split into train/test  
+    logger.info(f"\n✂️ Splitting...")
     train_data, test_data = split_dataset(all_data, test_ratio=test_ratio, seed=seed)
     logger.info(f"{len(train_data):,} train, {len(test_data):,} test")
+    
+    # Track train/test split by source
+    for source_id in pipeline_tracking:
+        pipeline_tracking[source_id]['final_train'] = 0
+        pipeline_tracking[source_id]['final_test'] = 0
+    
+    for sample in train_data:
+        source = sample.get('source', 'unknown')
+        if source in pipeline_tracking:
+            pipeline_tracking[source]['final_train'] += 1
+            
+    for sample in test_data:
+        source = sample.get('source', 'unknown') 
+        if source in pipeline_tracking:
+            pipeline_tracking[source]['final_test'] += 1
     
     # Apply augmentation to training data
     logger.info(f"🔄 Formatting conversations...")
@@ -437,6 +578,7 @@ def prepare_datasets(
         "total_samples": {
             "raw": dedup_stats['total_raw'] if dedup_stats else len(all_data),
             "after_deduplication": len(all_data) if deduplicate else None,
+            "after_code_fixing": len(all_data) if fix_code else None,
             "after_rendering_validation": len(all_data) if enable_rendering_validation else None,
             "train_before_augmentation": len(train_data),
             "train_after_augmentation": len(augmented_train),
@@ -449,9 +591,20 @@ def prepare_datasets(
         },
         "source_priorities": source_priorities,
         "deduplication_applied": deduplicate,
+        "code_fixing_applied": fix_code,
         "rendering_validation_applied": enable_rendering_validation,
         "timestamp": datetime.now().isoformat()
     }
+    
+    # Add code fixing summary if applicable  
+    if fix_stats:
+        final_stats["code_fixing"] = {
+            "samples_processed": fix_stats["samples_processed"],
+            "samples_fixed": fix_stats["samples_fixed"],
+            "fix_rate": fix_stats["samples_fixed"] / fix_stats["samples_processed"] * 100 if fix_stats["samples_processed"] > 0 else 0,
+            "fixes_by_type": fix_stats["fixes_by_type"],
+            "fixes_by_source": fix_stats["fixes_by_source"]
+        }
     
     # Add rendering validation summary if applicable
     if rendering_stats:
@@ -519,6 +672,105 @@ def prepare_datasets(
     if len(final_stats["source_distribution"]) > 5:
         source_summary += f" (+{len(final_stats['source_distribution'])-5} more)"
     logger.info(f"  📋 {source_summary}")
+    
+    # Print detailed pipeline tracking table
+    if enable_rendering_validation:
+        logger.info("\n📊 Pipeline Tracking by Source:")
+        logger.info("")
+        
+        # Calculate column widths - make them tighter
+        source_width = min(20, max(len("Source"), max(len(src) for src in pipeline_tracking.keys())))
+        num_width = 8  # Reduced from 12
+        
+        # Shortened header labels
+        headers = ["Source", "Init", "Quality", "Dedup", "Fix", "Render", "Train", "Test"]
+        
+        # Build header
+        header_parts = [f"{headers[0]:<{source_width}}"]
+        for h in headers[1:]:
+            header_parts.append(f"{h:>{num_width}}")
+        header = " │ ".join(header_parts)
+        
+        # Build separator
+        sep_parts = ["─" * source_width]
+        for _ in headers[1:]:
+            sep_parts.append("─" * num_width)
+        separator = "─┼─".join(sep_parts)
+        
+        logger.info(header)
+        logger.info(separator)
+        
+        # Sort sources by initial extraction count
+        sorted_sources = sorted(pipeline_tracking.items(), 
+                              key=lambda x: x[1]['initial_extraction'], 
+                              reverse=True)
+        
+        # Totals
+        totals = defaultdict(int)
+        
+        # Print each source
+        for source_id, counts in sorted_sources:
+            # Truncate source name if too long
+            display_source = source_id[:source_width] if len(source_id) > source_width else source_id
+            
+            row_parts = [f"{display_source:<{source_width}}"]
+            row_parts.append(f"{counts['initial_extraction']:>{num_width},}")
+            row_parts.append(f"{counts['after_quality']:>{num_width},}")
+            row_parts.append(f"{counts['after_deduplication']:>{num_width},}")
+            row_parts.append(f"{counts['after_code_fixing']:>{num_width},}")
+            row_parts.append(f"{counts['after_rendering']:>{num_width},}")
+            row_parts.append(f"{counts['final_train']:>{num_width},}")
+            row_parts.append(f"{counts['final_test']:>{num_width},}")
+            
+            row = " │ ".join(row_parts)
+            logger.info(row)
+            
+            # Add to totals
+            for key, value in counts.items():
+                totals[key] += value
+        
+        # Print totals
+        logger.info(separator)
+        total_parts = [f"{'TOTAL':<{source_width}}"]
+        total_parts.append(f"{totals['initial_extraction']:>{num_width},}")
+        total_parts.append(f"{totals['after_quality']:>{num_width},}")
+        total_parts.append(f"{totals['after_deduplication']:>{num_width},}")
+        total_parts.append(f"{totals['after_code_fixing']:>{num_width},}")
+        total_parts.append(f"{totals['after_rendering']:>{num_width},}")
+        total_parts.append(f"{totals['final_train']:>{num_width},}")
+        total_parts.append(f"{totals['final_test']:>{num_width},}")
+        
+        total_row = " │ ".join(total_parts)
+        logger.info(total_row)
+        
+        # Print reduction percentages
+        logger.info("\n📉 Pipeline Reduction Rates:")
+        if totals['initial_extraction'] > 0:
+            quality_reduction = (1 - totals['after_quality'] / totals['initial_extraction']) * 100
+            dedup_reduction = (1 - totals['after_deduplication'] / totals['after_quality']) * 100 if totals['after_quality'] > 0 else 0
+            fix_reduction = (1 - totals['after_code_fixing'] / totals['after_deduplication']) * 100 if totals['after_deduplication'] > 0 else 0
+            render_reduction = (1 - totals['after_rendering'] / totals['after_code_fixing']) * 100 if totals['after_code_fixing'] > 0 else 0
+            total_reduction = (1 - totals['after_rendering'] / totals['initial_extraction']) * 100
+            
+            logger.info(f"  Quality validation: {quality_reduction:.1f}% removed")
+            logger.info(f"  Deduplication: {dedup_reduction:.1f}% removed")
+            logger.info(f"  Code fixing: {fix_reduction:.1f}% removed")
+            logger.info(f"  Rendering validation: {render_reduction:.1f}% removed")
+            logger.info(f"  Total reduction: {total_reduction:.1f}% removed")
+            
+        # Save pipeline tracking to file
+        pipeline_report = {
+            "timestamp": datetime.now().isoformat(),
+            "pipeline_tracking": dict(pipeline_tracking),
+            "totals": dict(totals),
+            "rendering_enabled": enable_rendering_validation,
+            "quality_validation_enabled": not no_quality_validation,
+            "deduplication_enabled": deduplicate,
+            "code_fixing_enabled": fix_code
+        }
+        
+        with open(output_path / "pipeline_tracking_report.json", 'w') as f:
+            json.dump(pipeline_report, f, indent=2)
 
 
 def main():
@@ -526,7 +778,7 @@ def main():
     import argparse
     
     parser = argparse.ArgumentParser(description="Prepare Manim datasets using plugin extractors")
-    parser.add_argument("--output-dir", default="data_formatted_v2", help="Output directory")
+    parser.add_argument("--output-dir", default="data_formatted", help="Output directory")
     parser.add_argument("--sources", nargs="+", help="Specific sources to process (default: all)")
     parser.add_argument("--augmentation", action="store_true", help="Enable data augmentation")
     parser.add_argument("--no-deduplicate", action="store_true", help="Disable deduplication")
@@ -543,10 +795,14 @@ def main():
     parser.add_argument("--no-rendering-fixes", action="store_true", help="Disable automatic fixes during rendering")
     parser.add_argument("--rendering-full", type=str, nargs='?', const="rendered_videos", help="Enable full video rendering and save videos to directory (default: rendered_videos)")
     parser.add_argument("--rendering-fast", action="store_true", help="Use fast mode: render only last frame as PNG instead of full video")
+    parser.add_argument("--no-rendering-cache", action="store_true", help="Disable rendering cache (always re-render even if video exists)")
     
     # LLM description options
     parser.add_argument("--fill-descriptions", action="store_true", help="Fill placeholder descriptions with LLM")
     parser.add_argument("--llm-config", help="LLM configuration file")
+    
+    # Code fixing options
+    parser.add_argument("--fix-code", action="store_true", help="Apply conservative code fixes for common API issues")
     
     args = parser.parse_args()
     
@@ -586,7 +842,9 @@ def main():
         rendering_fast_mode=args.rendering_fast,
         save_videos_dir=args.rendering_full if args.rendering_full else None,
         llm_fill_descriptions=args.fill_descriptions,
-        llm_config=llm_config
+        llm_config=llm_config,
+        fix_code=args.fix_code,
+        rendering_use_cache=not args.no_rendering_cache
     )
 
 

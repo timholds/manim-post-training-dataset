@@ -111,15 +111,6 @@
       "notes": "Unified extractor: 47.2% description mismatch rate, 50% duplicates, using code-only approach"
     },
     
-    "vivek3141": {
-      "allow_through": {
-        "old_manim_style": {
-          "enabled": true,
-          "expected": true
-        }
-      },
-      "notes": "Uses older Manim API, this is expected"
-    },
     
     "manim_ce_examples": {
       "validation_actions": {
@@ -128,6 +119,11 @@
         }
       },
       "notes": "Official examples, assume high quality"
+    },
+    
+    "reducible": {
+      "exclude_source": false,
+      "notes": "Updated extractor to filter only ManimCE content (2022 videos + MarchingSquares). Excludes all ManimGL content from 2019-2021."
     }
   },
   

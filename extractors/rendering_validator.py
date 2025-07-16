@@ -10,20 +10,28 @@ import ast
 import re
 import time
 import traceback
+import shutil
 from pathlib import Path
 from typing import Dict, Any, Tuple, List, Optional
 import logging
 from concurrent.futures import ProcessPoolExecutor, as_completed
+from .code_fixer import ManimCodeFixer
 
 logger = logging.getLogger(__name__)
 
 
-def _worker_validate_sample(idx: int, sample: Dict[str, Any], timeout: int, quality: str, fix_common_issues: bool, dry_run: bool = False, save_videos_dir: Optional[str] = None, fast_mode: bool = False) -> Tuple[bool, Dict]:
+def _worker_validate_sample(idx: int, sample: Dict[str, Any], timeout: int, quality: str, fix_common_issues: bool, dry_run: bool = False, save_videos_dir: Optional[str] = None, fast_mode: bool = False, use_cache: bool = True) -> Tuple[bool, Dict, Dict]:
     """Worker function for parallel validation."""
-    validator = RenderingValidator(timeout=timeout, quality=quality, cleanup=True, fix_common_issues=fix_common_issues, dry_run=dry_run, save_videos_dir=save_videos_dir, fast_mode=fast_mode)
+    # Suppress logging in worker processes to avoid interfering with progress bar
+    import logging
+    logging.getLogger().setLevel(logging.WARNING)
+    
+    validator = RenderingValidator(timeout=timeout, quality=quality, cleanup=True, fix_common_issues=fix_common_issues, dry_run=dry_run, save_videos_dir=save_videos_dir, fast_mode=fast_mode, use_cache=use_cache)
     code = sample.get("code", "")
     sample_id = f"{sample.get('source', 'unknown')}_{idx}"
-    return validator.validate_render(code, sample_id)
+    success, details = validator.validate_render(code, sample_id)
+    # Return success, details, and stats separately
+    return success, details, validator.stats
 
 
 class RenderingValidator:
@@ -36,7 +44,8 @@ class RenderingValidator:
                  fix_common_issues: bool = True,
                  dry_run: bool = False,
                  save_videos_dir: Optional[str] = None,
-                 fast_mode: bool = False):
+                 fast_mode: bool = False,
+                 use_cache: bool = True):
         """
         Initialize rendering validator.
         
@@ -48,6 +57,7 @@ class RenderingValidator:
             dry_run: If True, only validate syntax without rendering
             save_videos_dir: Directory to save rendered videos (None to not save)
             fast_mode: If True, only render last frame as PNG instead of full video
+            use_cache: If True, skip rendering if video already exists in save_videos_dir
         """
         self.timeout = timeout
         self.quality = quality
@@ -56,6 +66,7 @@ class RenderingValidator:
         self.dry_run = dry_run
         self.save_videos_dir = save_videos_dir
         self.fast_mode = fast_mode
+        self.use_cache = use_cache
         
         # Create save directory if specified
         if self.save_videos_dir:
@@ -66,6 +77,7 @@ class RenderingValidator:
             "successful_renders": 0,
             "failed_renders": 0,
             "fixed_and_rendered": 0,
+            "cached_videos": 0,
             "error_types": {}
         }
     
@@ -83,7 +95,7 @@ class RenderingValidator:
         
         if not success and self.fix_common_issues:
             # Attempt to fix and retry
-            fixed_code = self._attempt_fixes(code, details.get("error", ""))
+            fixed_code = self._attempt_fixes(code, details.get("error", ""), details.get("stderr", ""))
             if fixed_code != code:
                 success, details = self._try_render(fixed_code, sample_id + "_fixed")
                 if success:
@@ -94,9 +106,11 @@ class RenderingValidator:
         # Update stats
         if success:
             self.stats["successful_renders"] += 1
+            if details.get("cached", False):
+                self.stats["cached_videos"] += 1
         else:
             self.stats["failed_renders"] += 1
-            error_type = self._categorize_error(details.get("error", ""))
+            error_type = self._categorize_error(details.get("error", ""), details.get("stderr", ""))
             self.stats["error_types"][error_type] = self.stats["error_types"].get(error_type, 0) + 1
         
         return success, details
@@ -124,6 +138,20 @@ class RenderingValidator:
         # If dry run, stop here
         if self.dry_run:
             return True, {"dry_run": True, "scene_name": scene_name}
+        
+        # Check cache if enabled and save directory exists
+        if self.use_cache and self.save_videos_dir and not self.fast_mode:
+            cached_path = Path(self.save_videos_dir) / f"{sample_id}.mp4"
+            if cached_path.exists() and cached_path.stat().st_size > 0:
+                return True, {
+                    "render_time": 0,
+                    "file_size": cached_path.stat().st_size,
+                    "output_path": str(cached_path),
+                    "saved_path": str(cached_path),
+                    "fast_mode": False,
+                    "cached": True,
+                    "stdout": "Video loaded from cache"
+                }
         
         # Otherwise do actual render
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -170,8 +198,17 @@ class RenderingValidator:
                         # In fast mode, look for PNG files
                         output_files = list(output_dir.rglob("*.png"))
                     else:
-                        # In normal mode, look for video files
-                        output_files = list(output_dir.rglob("*.mp4"))
+                        # In normal mode, look for any video files (mp4, mov, avi, etc.)
+                        video_extensions = ["*.mp4", "*.mov", "*.avi", "*.mkv", "*.webm"]
+                        output_files = []
+                        for ext in video_extensions:
+                            output_files.extend(list(output_dir.rglob(ext)))
+                        
+                        # If no video files found, also check for any files in media directory
+                        if not output_files:
+                            all_files = list(output_dir.rglob("*"))
+                            # Filter out directories and hidden files
+                            output_files = [f for f in all_files if f.is_file() and not f.name.startswith('.') and f.stat().st_size > 100]
                     
                     if output_files:
                         file_size = output_files[0].stat().st_size
@@ -191,10 +228,14 @@ class RenderingValidator:
                             "stdout": result.stdout[-500:] if result.stdout else ""
                         }
                     else:
+                        # Debug: show what files were actually created
+                        all_files = list(output_dir.rglob("*"))
+                        file_list = [str(f) for f in all_files if f.is_file()]
                         return False, {
                             "error": f"No {'PNG' if self.fast_mode else 'video'} file generated",
                             "stdout": result.stdout,
-                            "stderr": result.stderr
+                            "stderr": result.stderr,
+                            "debug_files_found": file_list[:10]  # Show first 10 files for debugging
                         }
                 else:
                     return False, {
@@ -250,33 +291,47 @@ class RenderingValidator:
             pass
         return None
     
-    def _categorize_error(self, error: str) -> str:
+    def _categorize_error(self, error: str, stderr: str = "") -> str:
         """Categorize error type for statistics."""
-        error_lower = error.lower()
+        # Combine error and stderr for better categorization
+        full_error = error.lower() + " " + stderr.lower()
         
-        if "no module named" in error_lower or "import" in error_lower:
+        if "no module named" in full_error or "import" in full_error:
             return "import_error"
-        elif "syntax" in error_lower:
+        elif "syntax" in full_error:
             return "syntax_error"
-        elif "timeout" in error_lower:
+        elif "timeout" in full_error:
             return "timeout"
-        elif "no video file" in error_lower:
+        elif "no video file" in full_error or "no png file" in full_error:
             return "no_output"
-        elif "attributeerror" in error_lower:
+        elif "attributeerror" in full_error:
             return "attribute_error"
-        elif "typeerror" in error_lower:
+        elif "typeerror" in full_error:
             return "type_error"
-        elif "nameerror" in error_lower:
+        elif "nameerror" in full_error:
             return "name_error"
         else:
             return "other"
     
-    def _attempt_fixes(self, code: str, error: str) -> str:
+    def _attempt_fixes(self, code: str, error: str, stderr: str = "") -> str:
         """Attempt to fix common issues in code."""
         fixed_code = code
         
+        # First, try applying general fixes with ManimCodeFixer
+        try:
+            fixer = ManimCodeFixer()
+            sample = {'code': fixed_code}
+            fix_result = fixer.apply_fixes(sample)
+            if fix_result.success:
+                fixed_code = fix_result.fixed_code
+        except Exception as e:
+            logger.debug(f"ManimCodeFixer failed: {e}")
+        
+        # Combine error and stderr for better error detection
+        full_error = error.lower() + " " + stderr.lower()
+        
         # Fix 1: Add missing imports
-        if "no module named 'manim'" in error.lower() or not re.search(r'from manim import|import manim', code):
+        if "no module named 'manim'" in full_error or not re.search(r'from manim import|import manim', code):
             fixed_code = "from manim import *\n" + fixed_code
         
         # Fix 2: Ensure proper indentation (convert tabs to spaces)
@@ -309,6 +364,64 @@ class RenderingValidator:
             # This is handled by extracting scene name
             pass
         
+        # Fix 7: Fix deprecated animations based on NameError in stderr
+        if "nameerror" in full_error:
+            # ShowCreation -> Create
+            if "showcreation" in full_error:
+                fixed_code = re.sub(r'\bShowCreation\b', 'Create', fixed_code)
+            
+            # Uncreate -> Unwrite
+            if "uncreate" in full_error:
+                fixed_code = re.sub(r'\bUncreate\b', 'Unwrite', fixed_code)
+            
+            # DrawBorderThenFill -> Create
+            if "drawborderthenfill" in full_error:
+                fixed_code = re.sub(r'\bDrawBorderThenFill\b', 'Create', fixed_code)
+            
+            # FadeInFromDown -> FadeIn with shift parameter
+            if "fadeinfromdown" in full_error:
+                fixed_code = re.sub(r'\bFadeInFromDown\b', 'FadeIn', fixed_code)
+            
+            # FadeOutAndShiftDown -> FadeOut with shift parameter
+            if "fadeoutandshiftdown" in full_error:
+                fixed_code = re.sub(r'\bFadeOutAndShiftDown\b', 'FadeOut', fixed_code)
+            
+            # GrowFromCenter -> GrowFromPoint
+            if "growfromcenter" in full_error:
+                fixed_code = re.sub(r'\bGrowFromCenter\b', 'GrowFromPoint', fixed_code)
+            
+            # ShowSubmobjectsOneByOne -> AnimationGroup with lag_ratio
+            if "showsubmobjectsonebyone" in full_error:
+                fixed_code = re.sub(r'\bShowSubmobjectsOneByOne\b', 'Create', fixed_code)
+        
+        # Fix 8: Fix deprecated classes based on NameError
+        if "nameerror" in full_error:
+            # TexMobject -> MathTex
+            if "texmobject" in full_error:
+                fixed_code = re.sub(r'\bTexMobject\b', 'MathTex', fixed_code)
+            
+            # TextMobject -> Text
+            if "textmobject" in full_error:
+                fixed_code = re.sub(r'\bTextMobject\b', 'Text', fixed_code)
+        
+        # Fix 9: Fix attribute errors
+        if "attributeerror" in full_error:
+            # set_width -> .width property
+            if "set_width" in full_error:
+                fixed_code = re.sub(r'(\w+)\.set_width\(\s*([^)]+)\s*\)', r'\1.width = \2', fixed_code)
+            
+            # set_height -> .height property
+            if "set_height" in full_error:
+                fixed_code = re.sub(r'(\w+)\.set_height\(\s*([^)]+)\s*\)', r'\1.height = \2', fixed_code)
+            
+            # get_width -> .width property
+            if "get_width" in full_error:
+                fixed_code = re.sub(r'(\w+)\.get_width\(\s*\)', r'\1.width', fixed_code)
+            
+            # get_height -> .height property
+            if "get_height" in full_error:
+                fixed_code = re.sub(r'(\w+)\.get_height\(\s*\)', r'\1.height', fixed_code)
+        
         return fixed_code
     
     def _get_applied_fixes(self, original: str, fixed: str) -> List[str]:
@@ -327,6 +440,37 @@ class RenderingValidator:
         if "self.play" in fixed and "self.play" not in original and "play" in original:
             fixes.append("added_self_to_methods")
         
+        # Check for deprecated animation fixes
+        deprecated_animations = [
+            ("ShowCreation", "Create"),
+            ("Uncreate", "Unwrite"),
+            ("DrawBorderThenFill", "Create"),
+            ("FadeInFromDown", "FadeIn"),
+            ("FadeOutAndShiftDown", "FadeOut"),
+            ("GrowFromCenter", "GrowFromPoint"),
+            ("ShowSubmobjectsOneByOne", "Create")
+        ]
+        
+        for old_name, new_name in deprecated_animations:
+            if old_name in original and new_name in fixed and old_name not in fixed:
+                fixes.append(f"replaced_{old_name.lower()}")
+        
+        # Check for deprecated class fixes
+        if "TexMobject" in original and "MathTex" in fixed:
+            fixes.append("replaced_texmobject")
+        if "TextMobject" in original and "Text" in fixed:
+            fixes.append("replaced_textmobject")
+        
+        # Check for property fixes
+        if "set_width(" in original and ".width =" in fixed:
+            fixes.append("converted_set_width")
+        if "set_height(" in original and ".height =" in fixed:
+            fixes.append("converted_set_height")
+        if "get_width()" in original and ".width" in fixed and "get_width()" not in fixed:
+            fixes.append("converted_get_width")
+        if "get_height()" in original and ".height" in fixed and "get_height()" not in fixed:
+            fixes.append("converted_get_height")
+        
         return fixes
     
     def get_report(self) -> str:
@@ -341,6 +485,9 @@ class RenderingValidator:
         
         if self.fix_common_issues:
             report.append(f"Fixed and rendered: {self.stats['fixed_and_rendered']} ({self.stats['fixed_and_rendered']/max(1, self.stats['total_validated'])*100:.1f}%)")
+        
+        if self.use_cache and self.stats.get('cached_videos', 0) > 0:
+            report.append(f"Loaded from cache: {self.stats['cached_videos']} ({self.stats['cached_videos']/max(1, self.stats['total_validated'])*100:.1f}%)")
         
         if self.stats["error_types"]:
             report.append("\nError distribution:")
@@ -357,7 +504,8 @@ class BatchRenderValidator:
                  validator: Optional[RenderingValidator] = None,
                  max_workers: Optional[int] = None,
                  save_failed_samples: bool = True,
-                 dry_run: bool = False):
+                 dry_run: bool = False,
+                 max_failed_samples: int = 1000):
         """
         Initialize batch validator.
         
@@ -373,6 +521,7 @@ class BatchRenderValidator:
         self.save_failed_samples = save_failed_samples
         self.failed_samples = []
         self.dry_run = dry_run
+        self.max_failed_samples = max_failed_samples
     
     def validate_dataset(self, samples: List[Dict[str, Any]], 
                         progress_callback=None) -> Tuple[List[Dict], List[Dict]]:
@@ -415,12 +564,14 @@ class BatchRenderValidator:
                 sample["render_error"] = details.get("error", "Unknown error")
                 invalid_samples.append(sample)
                 
-                if self.save_failed_samples and len(self.failed_samples) < 100:
+                if self.save_failed_samples and len(self.failed_samples) < self.max_failed_samples:
                     self.failed_samples.append({
                         "source": sample.get("source"),
                         "description": sample.get("description", "")[:200],
+                        "code": sample.get("code", ""),
                         "error": details.get("error", ""),
-                        "stderr": details.get("stderr", "")[:500]
+                        "stderr": details.get("stderr", "")[:500],
+                        "sample_id": f"{sample.get('source', 'unknown')}_{i}"
                     })
         
         return valid_samples, invalid_samples
@@ -437,7 +588,8 @@ class BatchRenderValidator:
                         fix_common_issues=self.validator.fix_common_issues,
                         dry_run=self.dry_run,
                         save_videos_dir=self.validator.save_videos_dir,
-                        fast_mode=self.validator.fast_mode)
+                        fast_mode=self.validator.fast_mode,
+                        use_cache=self.validator.use_cache)
         
         # Process samples in parallel
         with ProcessPoolExecutor(max_workers=self.max_workers) as executor:
@@ -465,12 +617,30 @@ class BatchRenderValidator:
         valid_samples = []
         invalid_samples = []
         
+        # Aggregate stats from all workers
+        aggregated_stats = {
+            "total_validated": 0,
+            "successful_renders": 0,
+            "failed_renders": 0,
+            "fixed_and_rendered": 0,
+            "cached_videos": 0,
+            "error_types": {}
+        }
+        
         for i, result in enumerate(results):
             if result is None:
                 continue
                 
             sample = samples[i]
-            success, details = result
+            success, details, worker_stats = result
+            
+            # Aggregate stats from worker
+            for key in ["total_validated", "successful_renders", "failed_renders", "fixed_and_rendered", "cached_videos"]:
+                aggregated_stats[key] += worker_stats.get(key, 0)
+            
+            # Aggregate error types
+            for error_type, count in worker_stats.get("error_types", {}).items():
+                aggregated_stats["error_types"][error_type] = aggregated_stats["error_types"].get(error_type, 0) + count
             
             if success:
                 sample["rendering_validated"] = True
@@ -483,13 +653,18 @@ class BatchRenderValidator:
                 sample["render_error"] = details.get("error", "Unknown error")
                 invalid_samples.append(sample)
                 
-                if self.save_failed_samples and len(self.failed_samples) < 100:
+                if self.save_failed_samples and len(self.failed_samples) < self.max_failed_samples:
                     self.failed_samples.append({
                         "source": sample.get("source"),
                         "description": sample.get("description", "")[:200],
+                        "code": sample.get("code", ""),
                         "error": details.get("error", ""),
-                        "stderr": details.get("stderr", "")[:500]
+                        "stderr": details.get("stderr", "")[:500],
+                        "sample_id": f"{sample.get('source', 'unknown')}_{i}"
                     })
+        
+        # Update validator stats with aggregated stats
+        self.validator.stats = aggregated_stats
         
         return valid_samples, invalid_samples
     

@@ -1,0 +1,245 @@
+2025-07-14 03:01:57,664 - INFO - Registered extractor: reducible
+2025-07-14 03:01:57,755 - INFO - Registered extractor: manim_ce_examples
+2025-07-14 03:01:57,755 - INFO - Registered extractor: dan4life_aoc2024
+2025-07-14 03:01:57,755 - INFO - Registered extractor: szymon_ozog
+2025-07-14 03:01:57,755 - INFO - Registered extractor: xiaoxiae_videos
+2025-07-14 03:01:57,755 - INFO - Registered extractor: kutuzova
+2025-07-14 03:01:57,756 - INFO - Registered extractor: benjamin_hackl
+2025-07-14 03:01:57,756 - INFO - Registered extractor: vivek3141_dl
+2025-07-14 03:01:57,756 - INFO - Registered extractor: manimbench
+2025-07-14 03:01:57,836 - INFO - PyTorch version 2.7.1 available.
+2025-07-14 03:01:57,836 - INFO - TensorFlow version 2.19.0 available.
+2025-07-14 03:01:58,076 - INFO - Registered extractor: thanks_dataset
+2025-07-14 03:01:58,076 - INFO - Registered extractor: bespoke_manim
+2025-07-14 03:01:58,076 - INFO - Registered extractor: likey_data_structures
+2025-07-14 03:01:58,076 - INFO - Registered extractor: vivek3141
+2025-07-14 03:01:58,077 - INFO - Loaded quality configuration from quality_config.json
+2025-07-14 03:01:58,077 - INFO - Strict quality validation enabled via command line
+2025-07-14 03:01:58,077 - INFO - Discovered 13 extractors: reducible, manim_ce_examples, dan4life_aoc2024, szymon_ozog, xiaoxiae_videos, kutuzova, benjamin_hackl, vivek3141_dl, manimbench, thanks_dataset, bespoke_manim, likey_data_structures, vivek3141
+2025-07-14 03:01:58,077 - INFO - 📥 Extracting from 1 sources...
+2025-07-14 03:01:58,077 - INFO - Loading HuggingFace dataset: thanhkt/manim_code
+2025-07-14 03:01:58,077 - WARNING - Ignoring descriptions due to 47.2% mismatch rate - treating as code-only
+2025-07-14 03:02:00,073 - INFO - Dataset loaded with 4400 examples
+<unknown>:21: SyntaxWarning: invalid escape sequence '\('
+<unknown>:21: SyntaxWarning: invalid escape sequence '\('
+<unknown>:21: SyntaxWarning: invalid escape sequence '\('
+<unknown>:21: SyntaxWarning: invalid escape sequence '\('
+<unknown>:21: SyntaxWarning: invalid escape sequence '\('
+<unknown>:21: SyntaxWarning: invalid escape sequence '\('
+<unknown>:37: SyntaxWarning: invalid escape sequence '\B'
+<unknown>:37: SyntaxWarning: invalid escape sequence '\B'
+<unknown>:21: SyntaxWarning: invalid escape sequence '\('
+<unknown>:21: SyntaxWarning: invalid escape sequence '\('
+<unknown>:6: SyntaxWarning: invalid escape sequence '\p'
+<unknown>:6: SyntaxWarning: invalid escape sequence '\p'
+<unknown>:46: SyntaxWarning: invalid escape sequence '\('
+<unknown>:46: SyntaxWarning: invalid escape sequence '\('
+<unknown>:21: SyntaxWarning: invalid escape sequence '\('
+<unknown>:21: SyntaxWarning: invalid escape sequence '\('
+<unknown>:21: SyntaxWarning: invalid escape sequence '\('
+<unknown>:21: SyntaxWarning: invalid escape sequence '\('
+<unknown>:21: SyntaxWarning: invalid escape sequence '\('
+<unknown>:21: SyntaxWarning: invalid escape sequence '\('
+<unknown>:16: SyntaxWarning: invalid escape sequence '\p'
+<unknown>:16: SyntaxWarning: invalid escape sequence '\p'
+<unknown>:21: SyntaxWarning: invalid escape sequence '\('
+<unknown>:21: SyntaxWarning: invalid escape sequence '\('
+<unknown>:11: SyntaxWarning: invalid escape sequence '\('
+<unknown>:26: SyntaxWarning: invalid escape sequence '\('
+<unknown>:11: SyntaxWarning: invalid escape sequence '\('
+<unknown>:26: SyntaxWarning: invalid escape sequence '\('
+<unknown>:41: SyntaxWarning: invalid escape sequence '\('
+<unknown>:41: SyntaxWarning: invalid escape sequence '\('
+<unknown>:6: SyntaxWarning: invalid escape sequence '\p'
+<unknown>:6: SyntaxWarning: invalid escape sequence '\p'
+<unknown>:41: SyntaxWarning: invalid escape sequence '\('
+<unknown>:41: SyntaxWarning: invalid escape sequence '\('
+<unknown>:21: SyntaxWarning: invalid escape sequence '\('
+<unknown>:21: SyntaxWarning: invalid escape sequence '\('
+<unknown>:16: SyntaxWarning: invalid escape sequence '\('
+<unknown>:16: SyntaxWarning: invalid escape sequence '\('
+<unknown>:21: SyntaxWarning: invalid escape sequence '\('
+<unknown>:21: SyntaxWarning: invalid escape sequence '\('
+<unknown>:31: SyntaxWarning: invalid escape sequence '\('
+<unknown>:31: SyntaxWarning: invalid escape sequence '\('
+<unknown>:21: SyntaxWarning: invalid escape sequence '\('
+<unknown>:21: SyntaxWarning: invalid escape sequence '\('
+<unknown>:31: SyntaxWarning: invalid escape sequence '\('
+<unknown>:31: SyntaxWarning: invalid escape sequence '\('
+<unknown>:21: SyntaxWarning: invalid escape sequence '\('
+<unknown>:21: SyntaxWarning: invalid escape sequence '\('
+<unknown>:21: SyntaxWarning: invalid escape sequence '\('
+<unknown>:21: SyntaxWarning: invalid escape sequence '\('
+<unknown>:16: SyntaxWarning: invalid escape sequence '\('
+<unknown>:38: SyntaxWarning: invalid escape sequence '\('
+<unknown>:16: SyntaxWarning: invalid escape sequence '\('
+<unknown>:38: SyntaxWarning: invalid escape sequence '\('
+<unknown>:31: SyntaxWarning: invalid escape sequence '\('
+<unknown>:41: SyntaxWarning: invalid escape sequence '\('
+<unknown>:31: SyntaxWarning: invalid escape sequence '\('
+<unknown>:41: SyntaxWarning: invalid escape sequence '\('
+<unknown>:16: SyntaxWarning: invalid escape sequence '\p'
+<unknown>:16: SyntaxWarning: invalid escape sequence '\p'
+<unknown>:21: SyntaxWarning: invalid escape sequence '\('
+<unknown>:21: SyntaxWarning: invalid escape sequence '\('
+<unknown>:31: SyntaxWarning: invalid escape sequence '\('
+<unknown>:31: SyntaxWarning: invalid escape sequence '\('
+<unknown>:20: SyntaxWarning: invalid escape sequence '\s'
+<unknown>:20: SyntaxWarning: invalid escape sequence '\s'
+<unknown>:26: SyntaxWarning: invalid escape sequence '\o'
+<unknown>:26: SyntaxWarning: invalid escape sequence '\o'
+<unknown>:26: SyntaxWarning: invalid escape sequence '\('
+<unknown>:26: SyntaxWarning: invalid escape sequence '\('
+<unknown>:21: SyntaxWarning: invalid escape sequence '\('
+<unknown>:21: SyntaxWarning: invalid escape sequence '\('
+<unknown>:11: SyntaxWarning: invalid escape sequence '\p'
+<unknown>:11: SyntaxWarning: invalid escape sequence '\p'
+<unknown>:21: SyntaxWarning: invalid escape sequence '\('
+<unknown>:21: SyntaxWarning: invalid escape sequence '\('
+<unknown>:21: SyntaxWarning: invalid escape sequence '\('
+<unknown>:21: SyntaxWarning: invalid escape sequence '\('
+<unknown>:35: SyntaxWarning: invalid escape sequence '\p'
+<unknown>:35: SyntaxWarning: invalid escape sequence '\p'
+<unknown>:21: SyntaxWarning: invalid escape sequence '\('
+<unknown>:21: SyntaxWarning: invalid escape sequence '\('
+<unknown>:21: SyntaxWarning: invalid escape sequence '\('
+<unknown>:21: SyntaxWarning: invalid escape sequence '\('
+<unknown>:31: SyntaxWarning: invalid escape sequence '\('
+<unknown>:41: SyntaxWarning: invalid escape sequence '\('
+<unknown>:31: SyntaxWarning: invalid escape sequence '\('
+<unknown>:41: SyntaxWarning: invalid escape sequence '\('
+<unknown>:36: SyntaxWarning: invalid escape sequence '\s'
+<unknown>:36: SyntaxWarning: invalid escape sequence '\s'
+<unknown>:26: SyntaxWarning: invalid escape sequence '\o'
+<unknown>:26: SyntaxWarning: invalid escape sequence '\o'
+<unknown>:16: SyntaxWarning: invalid escape sequence '\('
+<unknown>:38: SyntaxWarning: invalid escape sequence '\('
+<unknown>:16: SyntaxWarning: invalid escape sequence '\('
+<unknown>:38: SyntaxWarning: invalid escape sequence '\('
+<unknown>:21: SyntaxWarning: invalid escape sequence '\('
+<unknown>:21: SyntaxWarning: invalid escape sequence '\('
+<unknown>:35: SyntaxWarning: invalid escape sequence '\p'
+<unknown>:35: SyntaxWarning: invalid escape sequence '\p'
+<unknown>:21: SyntaxWarning: invalid escape sequence '\('
+<unknown>:21: SyntaxWarning: invalid escape sequence '\('
+<unknown>:22: SyntaxWarning: invalid escape sequence '\('
+<unknown>:22: SyntaxWarning: invalid escape sequence '\('
+<unknown>:21: SyntaxWarning: invalid escape sequence '\('
+<unknown>:21: SyntaxWarning: invalid escape sequence '\('
+<unknown>:22: SyntaxWarning: invalid escape sequence '\('
+<unknown>:22: SyntaxWarning: invalid escape sequence '\('
+<unknown>:39: SyntaxWarning: invalid escape sequence '\('
+<unknown>:39: SyntaxWarning: invalid escape sequence '\('
+<unknown>:51: SyntaxWarning: invalid escape sequence '\('
+<unknown>:51: SyntaxWarning: invalid escape sequence '\('
+<unknown>:21: SyntaxWarning: invalid escape sequence '\('
+<unknown>:21: SyntaxWarning: invalid escape sequence '\('
+<unknown>:21: SyntaxWarning: invalid escape sequence '\('
+<unknown>:21: SyntaxWarning: invalid escape sequence '\('
+<unknown>:26: SyntaxWarning: invalid escape sequence '\('
+<unknown>:26: SyntaxWarning: invalid escape sequence '\('
+<unknown>:21: SyntaxWarning: invalid escape sequence '\('
+<unknown>:21: SyntaxWarning: invalid escape sequence '\('
+<unknown>:21: SyntaxWarning: invalid escape sequence '\('
+<unknown>:21: SyntaxWarning: invalid escape sequence '\('
+<unknown>:21: SyntaxWarning: invalid escape sequence '\('
+<unknown>:21: SyntaxWarning: invalid escape sequence '\('
+<unknown>:26: SyntaxWarning: invalid escape sequence '\('
+<unknown>:26: SyntaxWarning: invalid escape sequence '\('
+<unknown>:21: SyntaxWarning: invalid escape sequence '\('
+<unknown>:21: SyntaxWarning: invalid escape sequence '\('
+<unknown>:21: SyntaxWarning: invalid escape sequence '\('
+<unknown>:21: SyntaxWarning: invalid escape sequence '\('
+<unknown>:16: SyntaxWarning: invalid escape sequence '\('
+<unknown>:16: SyntaxWarning: invalid escape sequence '\('
+<unknown>:21: SyntaxWarning: invalid escape sequence '\('
+<unknown>:21: SyntaxWarning: invalid escape sequence '\('
+<unknown>:36: SyntaxWarning: invalid escape sequence '\s'
+<unknown>:36: SyntaxWarning: invalid escape sequence '\s'
+<unknown>:21: SyntaxWarning: invalid escape sequence '\('
+<unknown>:21: SyntaxWarning: invalid escape sequence '\('
+<unknown>:16: SyntaxWarning: invalid escape sequence '\p'
+<unknown>:16: SyntaxWarning: invalid escape sequence '\p'
+<unknown>:21: SyntaxWarning: invalid escape sequence '\('
+<unknown>:21: SyntaxWarning: invalid escape sequence '\('
+<unknown>:14: SyntaxWarning: invalid escape sequence '\p'
+<unknown>:14: SyntaxWarning: invalid escape sequence '\p'
+<unknown>:21: SyntaxWarning: invalid escape sequence '\('
+<unknown>:21: SyntaxWarning: invalid escape sequence '\('
+<unknown>:26: SyntaxWarning: invalid escape sequence '\('
+<unknown>:26: SyntaxWarning: invalid escape sequence '\('
+<unknown>:21: SyntaxWarning: invalid escape sequence '\('
+<unknown>:21: SyntaxWarning: invalid escape sequence '\('
+<unknown>:20: SyntaxWarning: invalid escape sequence '\s'
+<unknown>:20: SyntaxWarning: invalid escape sequence '\s'
+<unknown>:21: SyntaxWarning: invalid escape sequence '\('
+<unknown>:21: SyntaxWarning: invalid escape sequence '\('
+<unknown>:31: SyntaxWarning: invalid escape sequence '\('
+<unknown>:31: SyntaxWarning: invalid escape sequence '\('
+<unknown>:37: SyntaxWarning: invalid escape sequence '\B'
+<unknown>:37: SyntaxWarning: invalid escape sequence '\B'
+<unknown>:51: SyntaxWarning: invalid escape sequence '\('
+<unknown>:51: SyntaxWarning: invalid escape sequence '\('
+<unknown>:21: SyntaxWarning: invalid escape sequence '\('
+<unknown>:21: SyntaxWarning: invalid escape sequence '\('
+<unknown>:46: SyntaxWarning: invalid escape sequence '\('
+<unknown>:46: SyntaxWarning: invalid escape sequence '\('
+<unknown>:11: SyntaxWarning: invalid escape sequence '\p'
+<unknown>:11: SyntaxWarning: invalid escape sequence '\p'
+<unknown>:39: SyntaxWarning: invalid escape sequence '\('
+<unknown>:39: SyntaxWarning: invalid escape sequence '\('
+<unknown>:31: SyntaxWarning: invalid escape sequence '\('
+<unknown>:31: SyntaxWarning: invalid escape sequence '\('
+<unknown>:31: SyntaxWarning: invalid escape sequence '\('
+<unknown>:31: SyntaxWarning: invalid escape sequence '\('
+<unknown>:14: SyntaxWarning: invalid escape sequence '\p'
+<unknown>:14: SyntaxWarning: invalid escape sequence '\p'
+<unknown>:11: SyntaxWarning: invalid escape sequence '\('
+<unknown>:26: SyntaxWarning: invalid escape sequence '\('
+<unknown>:11: SyntaxWarning: invalid escape sequence '\('
+<unknown>:26: SyntaxWarning: invalid escape sequence '\('
+<unknown>:16: SyntaxWarning: invalid escape sequence '\p'
+<unknown>:16: SyntaxWarning: invalid escape sequence '\p'
+2025-07-14 03:02:01,546 - INFO - Thanks dataset extraction complete:
+2025-07-14 03:02:01,546 - INFO -   Total processed: 4400
+2025-07-14 03:02:01,546 - INFO -   Unique samples: 2440
+2025-07-14 03:02:01,546 - INFO -   Duplicates skipped: 1955 (44.4% if total_processed > 0 else 0)
+2025-07-14 03:02:01,546 - INFO -   Too short: 5
+2025-07-14 03:02:01,546 - INFO - 
+thanks_dataset Quality Report:
+=== Quality Validation Report ===
+Total samples checked: 2440
+Passed: 1850 (75.8%)
+Failed: 590 (24.2%)
+
+Issues by severity:
+  [CRITICAL]: 585
+  [HIGH]: 5
+  [MEDIUM]: 253
+2025-07-14 03:02:01,546 - INFO -   thanks_dataset: 1,850 samples
+2025-07-14 03:02:01,546 - INFO - Total: 1,850 samples collected
+2025-07-14 03:02:03,177 - INFO - Saved data sources visualization to data_sources.png
+2025-07-14 03:02:03,178 - INFO - 📊 Visualization saved: data_sources.png
+2025-07-14 03:02:03,178 - INFO - 
+✂️ Splitting...
+2025-07-14 03:02:03,178 - INFO - 1,665 train, 185 test
+2025-07-14 03:02:03,178 - INFO - 🔄 Formatting conversations...
+2025-07-14 03:02:03,181 - INFO - 💾 Saving datasets...
+2025-07-14 03:02:03,210 - INFO - 
+✅ Complete! Final dataset:
+2025-07-14 03:02:03,210 - INFO -   1,850 → train:1,665 → test:185
+2025-07-14 03:02:03,210 - INFO -   📁 test_final_strict
+2025-07-14 03:02:03,211 - INFO -   📋 thanks_dataset:1,665
+
+============================================================
+CODE LENGTH DISTRIBUTION SUMMARY
+============================================================
+Total samples analyzed: 1,850
+Overall median length: 1253 characters
+Overall mean length: 1121 characters
+Min length: 126 characters
+Max length: 3492 characters
+Standard deviation: 630 characters
+
+Source Summary:
+  thanks_dataset: 1850 samples, median=1253, mean=1121, priority=1

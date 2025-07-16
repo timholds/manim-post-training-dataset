@@ -1,6 +1,11 @@
 """
 Extractor for Vivek3141's Deep Learning Visualization series.
 Source: https://github.com/vivek3141/dl-visualization
+
+WARNING: This source is EXCLUDED in quality_config.json because:
+- 100% ManimGL code (uses old 3b1b manim version)
+- Incompatible with ManimCE rendering
+- See vivek3141.py for detailed explanation of issues
 """
 
 import logging
