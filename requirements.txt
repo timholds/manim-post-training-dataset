@@ -13,6 +13,7 @@ unsloth[colab-new] @ git+https://github.com/unslothai/unsloth.git
 # Data processing
 pandas>=2.0.0
 pyarrow>=14.0.0
+kaggle
 
 # For Ollama conversion
 llama-cpp-python>=0.2.0

@@ -277,13 +277,136 @@ class ManimCodeFixer:
         return code, fixes_applied
     
     def fix_tex_string_escapes(self, code: str) -> Tuple[str, List[str]]:
-        """DEPRECATED: This function is no longer used.
+        """Fix invalid escape sequences in MathTex/Tex/Text strings.
         
-        We now fix escape sequences at the source during extraction rather than
-        trying to fix them with complex regex patterns.
+        Converts strings with LaTeX commands to raw strings (r"...").
+        This prevents Python from interpreting backslashes as escape sequences.
         """
-        # No-op - return code unchanged
-        return code, []
+        fixes_applied = []
+        
+        # Common LaTeX commands that need to be preserved
+        latex_commands = [
+            'alpha', 'beta', 'gamma', 'delta', 'epsilon', 'zeta', 'eta', 'theta',
+            'iota', 'kappa', 'lambda', 'mu', 'nu', 'xi', 'pi', 'rho', 'sigma',
+            'tau', 'upsilon', 'phi', 'chi', 'psi', 'omega',
+            'Gamma', 'Delta', 'Theta', 'Lambda', 'Xi', 'Pi', 'Sigma', 'Upsilon',
+            'Phi', 'Psi', 'Omega',
+            'sum', 'prod', 'int', 'oint', 'partial', 'nabla',
+            'pm', 'mp', 'times', 'div', 'cdot', 'ast', 'star', 'circ',
+            'leq', 'geq', 'neq', 'approx', 'equiv', 'subset', 'supset',
+            'in', 'notin', 'cup', 'cap', 'vee', 'wedge',
+            'leftarrow', 'rightarrow', 'leftrightarrow', 'Leftarrow', 'Rightarrow',
+            'Leftrightarrow', 'uparrow', 'downarrow', 'updownarrow',
+            'mapsto', 'gets', 'to',
+            'infty', 'forall', 'exists', 'neg', 'emptyset', 'varnothing',
+            'sin', 'cos', 'tan', 'cot', 'sec', 'csc', 'log', 'ln', 'exp',
+            'lim', 'sup', 'inf', 'max', 'min',
+            'frac', 'sqrt', 'root', 'binom',
+            'left', 'right', 'big', 'Big', 'bigg', 'Bigg',
+            'lfloor', 'rfloor', 'lceil', 'rceil', 'langle', 'rangle',
+            'text', 'mathrm', 'mathbf', 'mathit', 'mathsf', 'mathtt',
+            'mathcal', 'mathscr', 'mathfrak', 'mathbb',
+            'dots', 'cdots', 'vdots', 'ddots', 'ldots',
+            'quad', 'qquad', 'space', 'hspace', 'vspace',
+            'newline', 'cr', 
+            'begin', 'end', 'matrix', 'pmatrix', 'bmatrix', 'vmatrix',
+            'array', 'cases', 'align', 'equation',
+            'hat', 'widehat', 'tilde', 'widetilde', 'bar', 'overline',
+            'vec', 'dot', 'ddot', 'overbrace', 'underbrace',
+            'color', 'textcolor', 'colorbox', 'fcolorbox',
+        ]
+        
+        # Build pattern to detect LaTeX commands
+        latex_pattern = '|'.join(f'\\\\{cmd}' for cmd in latex_commands)
+        
+        # Pattern to find MathTex/Tex/Text calls that are not already raw strings
+        # Negative lookbehind for 'r' to avoid matching raw strings
+        tex_pattern = r'(?<![r])((?:Math)?Tex|Text)\s*\(\s*(["\'])([^"\']*?)(\2)'
+        
+        def should_fix(content):
+            """Check if the string content needs fixing."""
+            if '\\' not in content:
+                return False
+            
+            # Check if it contains LaTeX commands
+            if re.search(latex_pattern, content):
+                return True
+            
+            # Check for other common LaTeX patterns
+            if re.search(r'\\[a-zA-Z]+', content):  # Any backslash followed by letters
+                return True
+            if re.search(r'\\[{}\[\]()_^]', content):  # LaTeX special characters
+                return True
+            if re.search(r'\\\d', content):  # Things like \1, \2 (groups)
+                return True
+                
+            return False
+        
+        def fix_tex_string(match):
+            func_name = match.group(1)
+            quote = match.group(2)
+            content = match.group(3)
+            
+            if should_fix(content):
+                fixes_applied.append('tex_escape_sequences_fixed')
+                # Convert to raw string
+                return f'{func_name}(r{quote}{content}{quote}'
+            
+            # Return unchanged if no fixes needed
+            return match.group(0)
+        
+        # Apply the fix
+        fixed_code = re.sub(tex_pattern, fix_tex_string, code)
+        
+        # Also handle multi-line MathTex/Tex/Text calls
+        multiline_pattern = r'(?<![r])((?:Math)?Tex|Text)\s*\(\s*\n?\s*(["\'])([^"\']*?)(\2)'
+        
+        def fix_multiline_tex(match):
+            func_name = match.group(1)
+            quote = match.group(2) 
+            content = match.group(3)
+            
+            if should_fix(content):
+                fixes_applied.append('tex_escape_sequences_fixed')
+                # Preserve the newline structure
+                return match.group(0).replace(f'{quote}{content}{quote}', f'r{quote}{content}{quote}')
+            
+            return match.group(0)
+        
+        fixed_code = re.sub(multiline_pattern, fix_multiline_tex, fixed_code, flags=re.MULTILINE | re.DOTALL)
+        
+        # Handle f-strings with LaTeX (more complex case)
+        fstring_pattern = r'((?:Math)?Tex|Text)\s*\(\s*f(["\'])([^"\']*?)(\2)'
+        
+        def fix_fstring_tex(match):
+            func_name = match.group(1)
+            quote = match.group(2)
+            content = match.group(3)
+            
+            # For f-strings, we need to escape the backslashes instead of using raw strings
+            if '\\' in content:
+                # Check if backslashes need escaping
+                needs_escaping = False
+                for cmd in latex_commands:
+                    if f'\\{cmd}' in content:
+                        needs_escaping = True
+                        break
+                
+                if needs_escaping:
+                    fixes_applied.append('tex_fstring_escape_fixed')
+                    # Double escape the backslashes for LaTeX commands
+                    escaped_content = content
+                    for cmd in latex_commands:
+                        escaped_content = escaped_content.replace(f'\\{cmd}', f'\\\\{cmd}')
+                    # Also escape other common patterns
+                    escaped_content = re.sub(r'\\([{}\[\]()_^])', r'\\\\\1', escaped_content)
+                    return f'{func_name}(f{quote}{escaped_content}{quote}'
+            
+            return match.group(0)
+        
+        fixed_code = re.sub(fstring_pattern, fix_fstring_tex, fixed_code)
+        
+        return fixed_code, fixes_applied
     
     def apply_fixes(self, sample: Dict[str, Any]) -> FixResult:
         """Apply all conservative fixes to a sample."""
